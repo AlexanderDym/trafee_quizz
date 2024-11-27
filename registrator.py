@@ -4,8 +4,27 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackContext, CallbackQueryHandler
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    Filters,
+    ConversationHandler,
+    CallbackContext,
+    CallbackQueryHandler,
+)
 from datetime import datetime
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Загрузка переменных из trafee.env
+load_dotenv(dotenv_path=Path('.') / 'trafee.env')
+
+# Получение токена из trafee.env
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_REGISTRATOR")
+
+if not TELEGRAM_TOKEN:
+    raise ValueError("Токен не найден. Убедитесь, что переменная TELEGRAM_TOKEN_REGISTRATOR задана в файле trafee.env.")
 
 # Путь к таблице
 allowed_users_file = "user_list.xlsx"  # Excel-файл с разрешёнными пользователями
@@ -164,7 +183,7 @@ def send_user_list(update: Update, context: CallbackContext):
 
 # Основная функция
 def main():
-    updater = Updater("8150438145:AAE47-REyY4_7_3IpYbazVI_Lw4GAGSmWec", use_context=True)
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
     # ConversationHandler для регистрации
