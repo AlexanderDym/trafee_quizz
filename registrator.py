@@ -29,7 +29,7 @@ if not TELEGRAM_TOKEN:
 # Путь к таблице
 allowed_users_file = "user_list.xlsx"  # Excel-файл с разрешёнными пользователями
 registration_log_file = "registration_log.csv"  # CSV-файл для регистрации
-main_bot_link = "https://t.me/tramee_chrismass_bot"  # Ссылка на основного бота
+main_bot_link = "https://t.me/trafee_quiz_bot"  # Ссылка на основного бота
 
 # Состояния для ConversationHandler
 ASK_TRAFFEE_USERNAME = range(1)
@@ -117,10 +117,12 @@ def log_registration(username, telegram_username):
 # Функция для старта регистрации
 def start(update: Update, context: CallbackContext):
     update.message.reply_text(
-        "👋 Добро пожаловать!\n\n"
-        "Пожалуйста, введите ваш *Trafee username* для проверки доступа."
+        "👋🎅🎄Welcome aboard!\n\n"
+        "Please enter your *Trafee username*✨\n\n""So we can verify your access and get you started 🚀",
+        parse_mode="Markdown"
     )
     return ASK_TRAFFEE_USERNAME
+
 
 # Проверка username
 def check_username(update: Update, context: CallbackContext):
@@ -128,47 +130,59 @@ def check_username(update: Update, context: CallbackContext):
     telegram_username = update.message.from_user.username
 
     found, registered = is_user_in_list(username)
+
     if found and registered:
         # Если пользователь уже зарегистрирован
         update.message.reply_text(
-            f"✅ {username}, вы уже зарегистрированы!\n"
-            f"Напоминаем ссылку на [основного бота]({main_bot_link}).",
+            f"✅ {username}, you're already registered!\n\n"
+            f"Here's the link to [the main bot]({main_bot_link}) to continue your journey. 🚀",
             parse_mode="Markdown"
         )
         return ConversationHandler.END
+
     elif found:
         # Если пользователь найден, но ещё не зарегистрирован
         mark_user_as_registered(username)
         log_registration(username, telegram_username)  # Логируем регистрацию
         update.message.reply_text(
-            f"🎉 Поздравляем, {username}! Вы успешно зарегистрированы.\n"
-            f"Перейдите в [основного бота]({main_bot_link}), чтобы продолжить участие.",
+            f"🎉 Congratulations, {username}!\n\nYou’ve successfully registered.\n"
+            f"Jump into [the main bot]({main_bot_link}) to start exploring! 🌟",
             parse_mode="Markdown"
         )
         return ConversationHandler.END
+
     else:
         # Если пользователь не найден
-        keyboard = [[InlineKeyboardButton("🔄 Попробовать ещё раз", callback_data="retry")]]
+        keyboard = [[InlineKeyboardButton("🔄 Try Again", callback_data="retry")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         update.message.reply_text(
-            "😔 Извините, но ваш Trafee username отсутствует в списке разрешённых пользователей.\n"
-            "Если вы считаете, что это ошибка, свяжитесь с вашим менеджером.",
+            "😔 Sorry, but your Trafee username isn’t in the list of authorized users.\n\n"
+            "If you think this is a mistake, please contact your manager for assistance.☘️",
             reply_markup=reply_markup
         )
         return ASK_TRAFFEE_USERNAME
+
+
 
 # Обработка кнопки "Попробовать ещё раз"
 def retry_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    query.edit_message_text("Пожалуйста, введите ваш *Trafee username* ещё раз.")
+    query.edit_message_text(
+        "🚀 No worries!\n\nPlease enter your *Trafee username* again, and let's try one more time.",
+        parse_mode="Markdown"
+    )
     return ASK_TRAFFEE_USERNAME
 
-# Отмена регистрации
+# Cancel registration
 def cancel(update: Update, context: CallbackContext):
-    update.message.reply_text("🚫 Регистрация отменена. Если захотите попробовать снова, напишите /start.")
+    update.message.reply_text(
+        "🚫 Registration has been canceled.\n\nIf you want to try again, just type /start.\n\n We'll be here waiting for you! 😊",
+        parse_mode="Markdown"
+    )
     return ConversationHandler.END
+
 
 # Команда /user_list для отправки таблицы
 def send_user_list(update: Update, context: CallbackContext):
@@ -176,10 +190,11 @@ def send_user_list(update: Update, context: CallbackContext):
         update.message.reply_document(
             document=open(allowed_users_file, "rb"),
             filename="user_list.xlsx",
-            caption="📋 Вот актуальный список пользователей."
+            caption="📋 Here's the current list of users."
         )
     else:
-        update.message.reply_text("❌ Таблица с пользователями отсутствует.")
+        update.message.reply_text("❌ The user list file is missing. Please check and try again.")
+
 
 # Основная функция
 def main():

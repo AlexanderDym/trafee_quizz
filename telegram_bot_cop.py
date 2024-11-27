@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Poll
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, PollAnswerHandler, JobQueue, CallbackContext
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, PollAnswerHandler, JobQueue
 from datetime import datetime, time as dt_time
 from dotenv import load_dotenv
 import openpyxl
@@ -18,7 +18,7 @@ import random
 load_dotenv(dotenv_path=Path('.') / 'trafee.env')
 
 # Timer for quiz
-QUIZ_TIMEOUT_SECONDS = 30
+QUIZ_TIMEOUT_SECONDS = 15
 
 # Global mapping of usernames to chat IDs
 user_chat_mapping = {}
@@ -29,15 +29,14 @@ notified_winners_global = set()
 
 # Список призов для каждого дня викторины
 prizes = [
-    "is a 1-month Spotify Premium subscription!",
-    "is a $20 Amazon gift card!",
-    "is a 1-month Netflix subscription!",
-    "is exclusive merchandise from our company!",
-    "is a 1-month YouTube Premium subscription!",
-    "is a bestselling e-book!",
-    "is a $15 food delivery voucher!"
+    "🎁 Сегодня разыгрывается подписка на Spotify Premium на 1 месяц!",
+    "🎁 Сегодня разыгрывается подарочная карта Amazon на $20!",
+    "🎁 Сегодня разыгрывается подписка на Netflix на 1 месяц!",
+    "🎁 Сегодня разыгрывается эксклюзивный мерч от нашей компании!",
+    "🎁 Сегодня разыгрывается подписка на YouTube Premium на 1 месяц!",
+    "🎁 Сегодня разыгрывается книга-бестселлер в электронном формате!",
+    "🎁 Сегодня разыгрывается сертификат на доставку еды на $15!"
 ]
-
 
 # Function to update chat ID mapping
 def update_user_chat_mapping(username, chat_id):
@@ -96,13 +95,13 @@ class QuizQuestion:
 
 # Quiz questions for 7 days
 quiz_questions = [
-    QuizQuestion("What is an offer? 🎄🎅", ["A call-to-action on a landing page like Hurry up for gifts! 🎁", "A product or service that the advertiser pays for", "Creative content used in advertising, like a holiday card from Santa ❄️"], "A product or service that the advertiser pays for"),
-    QuizQuestion("Which button is most commonly used for calls-to-action on Christmas's landing pages? 🎄🎁", ["Read more", "Share", "Buy now"], "Buy now"),
-    QuizQuestion("Which social media became the favourite among affiliates during the holiday season thanks to short and dynamic videos? 🎥✨", ["Facebook", "TikTok", "Twitter"], "TikTok"),
-    QuizQuestion("Which advertising strategy сan find the most magical ad for the upcoming holidays? 🎅🎄", ["Scaling", "A/B testing", "Retargeting"], "A/B testing"),
-    QuizQuestion("What's the metric that measures your earnings per visitor? 🎅💰", ["EPC (Earnings Per Click)", "CTR (Click-Through Rate)", "CPA (Cost Per Action)"], "EPC (Earnings Per Click)"),
-    QuizQuestion("What is ROI in affiliate marketing? 🎁📈", ["Ad impressions", "Return on investment and campaign profitability", "Revenue per individual sale"], "Return on investment and campaign profitability"),
-    QuizQuestion("What Does CPM Mean in Holiday Advertising? 🎅📊", ["Cost Per Million (cost for one million clicks)", "Cost Per Millisecond (cost for one millisecond)", "Cost Per Mille (cost for one thousand impressions)"], "Cost Per Mille (cost for one thousand impressions)"),
+    QuizQuestion("Which of these is a popular affiliate marketing model?", ["Cost per click (CPC)", "Cost per lead (CPL)", "Pay per hire (PPH)"], "Cost per lead (CPL)"),
+    QuizQuestion("Какая столица Франции?", ["Лондон", "Берлин", "Париж"], "Париж"),
+    QuizQuestion("Сколько планет в Солнечной системе?", ["7", "8", "9"], "8"),
+    QuizQuestion("Какое самое большое животное на земле?", ["Слон", "Синий кит", "Жираф"], "Синий кит"),
+    QuizQuestion("Сколько секунд в одной минуте?", ["60", "100", "120"], "60"),
+    QuizQuestion("Какой элемент обозначается символом O?", ["Кислород", "Водород", "Азот"], "Кислород"),
+    QuizQuestion("Кто является создателем теории относительности?", ["Ньютон", "Эйнштейн", "Галилей"], "Эйнштейн"),
 ]
 
 # Record user response in Excel
@@ -155,7 +154,7 @@ def list_handler(update, context):
         try:
             with open(file_path, 'rb') as file:
                 context.bot.send_document(chat_id=update.effective_chat.id, document=file, filename="quiz_results.xlsx")
-                update.message.reply_text("👉Here are the current quiz results👈")
+                update.message.reply_text("Here are the current quiz results.")
         except Exception as e:
             update.message.reply_text(f"Failed to send the file: {str(e)}")
     else:
@@ -167,82 +166,68 @@ def start_command_handler(update, context):
     chat_id = update.effective_chat.id
     username = user.username if user.username else "Unknown"
 
-    # Check if the user has already started the bot
+    # Проверяем, запускал ли пользователь уже бота
     if username in user_participation:
-        # Log the repeated start attempt
-        logging.warning(f"{datetime.now()} - User @{username} tried to press /start again.")
-        # Send a message to the user
+        # Логируем повторный запуск
+        logging.warning(f"{datetime.now()} - Пользователь @{username} пытался повторно нажать /start.")
+        # Отправляем сообщение пользователю
         context.bot.send_message(
             chat_id=chat_id,
-            text="You're already in the quiz 👻\n\nThe next question will be tomorrow!\n\nDon't be sneaky 😜."
+            text="Вы уже участвуете в викторине. Следующий вопрос будет завтра! Не шалите 😜."
         )
         return
 
-    # If the user is new, add them to the dictionary
+    # Если пользователь новый, добавляем его в словарь
     user_participation[username] = {"participated": True, "timestamp": datetime.now()}
     
-    # Send the welcome message
+    # Отправляем стандартное приветственное сообщение
     update_user_chat_mapping(username, chat_id)
-    image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz.png"
+    image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/img/girl-wearing-santa-s-hat-%281%29.jpg"
     welcome_text = (
-        "*🎄✨ Welcome to the ultimate holiday quiz challenge! 🎅🎁*\n\n"
-        "🔥 From *December 17 to 23*, we'll light up your festive spirit with daily quizzes\n\n"
-        "🎯 Answer questions, compete with others, and *grab amazing prizes every day!*\n\n"
-        "*🎁 And the grand finale?*\nA special gift waiting for the ultimate champion on Christmas Eve 🎉\n\n"
+        "🎄🎅 Добро пожаловать на наш праздничный розыгрыш от 17 по 24 декабря 🎅🎄\n\n"
+        "✨ Мы будем задавать вам вопросы каждый день и разыгрывать призы среди участников\n"
+        "🎁 Главный приз — уникальный подарок в канун Рождества\n\n"
+        "Нажмите кнопку ниже, чтобы участвовать в викторине и выиграть 🎉"
     )
-    context.bot.send_photo(chat_id=chat_id, photo=image_url, caption=welcome_text, parse_mode="Markdown")
+    context.bot.send_photo(chat_id=chat_id, photo=image_url, caption=welcome_text)
 
-    keyboard = [[InlineKeyboardButton("🚀 Join the Quiz", callback_data="participate")]]
+    keyboard = [[InlineKeyboardButton("📝 Участвовать в викторине", callback_data="participate")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    context.bot.send_message(chat_id=chat_id, text="Click 'Join the Quiz' to get started.\n\nLet the fun begin! 🎉", reply_markup=reply_markup)
-
-
+    context.bot.send_message(chat_id=chat_id, text="Нажмите 'Участвовать в викторине', чтобы начать.", reply_markup=reply_markup)
 
 
 def handle_poll_timeout(context):
     poll_id = context.job.context['poll_id']
     day = context.job.context['day']
 
-    # List of users who have already answered
+    # Список пользователей, которые уже ответили
     answered_users = poll_participants.get(poll_id, set())
 
-    # Load Excel and check who is already recorded
+    # Загружаем Excel и проверяем, кто уже записан
     wb = load_workbook(file_path)
     sheet_name = f"Day {day + 1}"
     sheet = wb[sheet_name]
 
-    # List of users already recorded in Excel
+    # Список пользователей, уже записанных в Excel
     recorded_users = {row[0] for row in sheet.iter_rows(min_row=2, values_only=True) if row[0]}
 
     for username, chat_id in user_chat_mapping.items():
-        user_id = chat_id  # Assuming chat_id corresponds to user_id
+        user_id = chat_id  # Если chat_id соответствует user_id
         if user_id in answered_users or user_id in recorded_users:
-            # User has already answered, skip
-            logging.info(f"User {username} has already answered the question. Timeout skipped.")
+            # Пользователь уже ответил, пропускаем
+            logging.info(f"Пользователь {username} уже ответил на вопрос. Таймаут пропущен.")
             continue
 
-        # If the user hasn't answered, notify them and record the result
-        context.bot.send_message(chat_id=chat_id, text="⏰ Time's up!\n\nYour response was not counted 🥵.")
+        # Если пользователь не ответил, уведомляем и записываем результат
+        context.bot.send_message(chat_id=chat_id, text="⏰ Увы, время вышло! Ваш ответ не был засчитан.")
         response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         record_user_response(user_id=user_id, username=username, day=day, response_time=response_time, result=False)
 
-    # Proceed to selecting winners
+    # Переходим к выбору победителей
     select_winners(context, day)
 
 
-from telegram.ext import JobQueue, CallbackContext
 
-def send_reminder(context: CallbackContext):
-    chat_id = context.job.context['chat_id']
-    context.bot.send_message(
-        chat_id=chat_id,
-        text=(
-            "🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨ "
-            "Don’t miss your chance to win more amazing prizes.\n\n"
-            "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
-            "to make sure you're ready to shine! 🌟 See you there!"
-        )
-    )
 
 def select_winners(context, day):
     global notified_winners_global
@@ -253,44 +238,37 @@ def select_winners(context, day):
     # Собираем правильные ответы
     correct_users = []
     for row in sheet.iter_rows(min_row=2, values_only=True):
-        if row[3] == "Верно":
+        if row[3] == "Верно":  # Колонка "Correct Answer"
             correct_users.append(row)
 
     # Выбираем победителей
-    if len(correct_users) > 5:
-        winners = random.sample(correct_users, 5)
+    if len(correct_users) > 5:  # Изменено на 5
+        winners = random.sample(correct_users, 5)  # Изменено на 5
     else:
         winners = correct_users
 
-    prize_message = prizes[day] if day < len(prizes) else "🎁 Today's prize will be announced later!"
+    # Текущий приз
+    prize_message = prizes[day] if day < len(prizes) else "🎁 Приз за сегодня будет объявлен позже!"
 
-    # Отправляем сообщение победителям
+    # Отправляем сообщения победителям
     for winner in winners:
-        user_id = winner[0]
+        user_id = winner[0]  # Предполагается, что ID пользователя в первом столбце
         if user_id not in notified_winners_global:
             context.bot.send_message(
                 chat_id=user_id,
-                text=f"🎉 Congratulations!\n\nYou are the winner of the day! 🏆✨\n\n🎁Your prize {prize_message}\n\n🤑Please contact your manager to claim your prize."
+                text=f"🎉 Поздравляем! Вы в числе победителей дня! 🏆✨ Свяжитесь с вашим менеджером для получения приза.\n\n{prize_message}"
             )
-            notified_winners_global.add(user_id)
+            notified_winners_global.add(user_id)  # Добавляем в глобальный список
 
-    # Отправляем утешительное сообщение остальным
+    # Остальным правильным участникам отправляем утешительное сообщение
     for user in correct_users:
         if user not in winners and user[0] not in notified_winners_global:
             user_id = user[0]
             context.bot.send_message(
                 chat_id=user_id,
-                text="Your answer is correct, but luck wasn't on your side this time 😉.\n\n Try again tomorrow!🎯"
+                text="Ваш ответ верный, но в этот раз удача была не на вашей стороне. Попробуйте завтра! 🎯"
             )
             notified_winners_global.add(user_id)
-
-    # Отправляем напоминание через 5 секунд всем участникам
-    for username, chat_id in user_chat_mapping.items():
-        context.job_queue.run_once(
-            send_reminder,
-            when=5,  # Задержка в секундах
-            context={'chat_id': chat_id}
-        )
 
 
 # Callback for participating in quiz
@@ -302,27 +280,27 @@ def participate_handler(update, context):
     chat_id = query.message.chat_id
     username = user.username if user.username else "Unknown"
 
-    # Check if the user has already participated
+    # Проверяем, участвовал ли пользователь уже
     if username in quiz_participation:
-        # If the user already participated, send a message
+        # Если пользователь уже участвовал, отправляем сообщение
         context.bot.send_message(
             chat_id=chat_id,
-            text="You've already joined today's quiz⭐.\n\nWait for the next question tomorrow! 😊"
+            text="Вы уже участвуете в сегодняшней викторине. Ждите новый вопрос завтра! 😊"
         )
-        logging.warning(f"{datetime.now()} - User @{username} tried to click 'Participate in the quiz' again.")
+        logging.warning(f"{datetime.now()} - Пользователь @{username} пытался повторно нажать 'Участвовать в викторине'.")
         return
 
-    # If the user is new, register their participation
+    # Если пользователь новый, регистрируем его участие
     quiz_participation[username] = {"participated": True, "timestamp": datetime.now()}
     
-    # Send a message confirming participation
+    # Отправляем сообщение о готовности к викторине
     context.bot.send_message(
         chat_id=chat_id,
-        text="Welcome aboard!🚀\n\nThe quiz starts sharp at 15:00 🤩.\n\nRelax for now!😎\n\nWe'll send you a reminder 3 minutes before it begins!\n\nEverything to help you grab our awesome prizes! 🎁"
+        text="🕒 Спасибо за участие! Ожидайте, вопрос появится через минуту. Не пропустите уведомление! 🎉"
     )
 
 
-
+# Function to send quiz question
 # Function to send quiz question
 def send_daily_quiz(context, day):
     logging.info(f"Preparing to send quiz for day {day + 1}")
@@ -335,11 +313,6 @@ def send_daily_quiz(context, day):
             return
 
         for username, chat_id in user_chat_mapping.items():
-            # Send the quiz question without mentioning the prize
-            context.bot.send_message(
-                chat_id=chat_id,
-                text="⚡ Today's quiz question:"
-            )
             add_quiz_question(context, question, chat_id, day)
 
         # Update current day
@@ -347,8 +320,8 @@ def send_daily_quiz(context, day):
         context.dispatcher.bot_data['current_day'] = next_day
 
         # Log when the next question will be sent
-        next_quiz_time = context.job_queue.jobs()[1].next_t.replace(tzinfo=None)  # Get the time for the next quiz
-        logging.info(f"The next question (day {next_day + 1}) will be sent at {next_quiz_time}.")
+        next_quiz_time = context.job_queue.jobs()[1].next_t.replace(tzinfo=None)
+        logging.info(f"Следующий вопрос (день {next_day + 1}) будет отправлен {next_quiz_time}.")
     else:
         logging.error(f"Day {day + 1} is out of range for questions.")
 
@@ -356,9 +329,7 @@ def send_daily_quiz(context, day):
 
 # Function to notify users about the quiz
 def notify_users_about_quiz(context):
-    """Notifies all participants that the quiz will start in 1 minute."""
-    current_day = context.dispatcher.bot_data.get('current_day', 0)
-
+    """Уведомляет всех участников о том, что викторина начнется через минуту."""
     if not user_chat_mapping:
         logging.warning("⚠️ No users to notify about the quiz.")
         return
@@ -367,7 +338,7 @@ def notify_users_about_quiz(context):
         try:
             context.bot.send_message(
                 chat_id=chat_id,
-                text="The quiz will start in 3 minutes!🔔\n\n🔥Get ready!"
+                text="🔔 Викторина начнется через 1 минуту! Готовьтесь!"
             )
             logging.info(f"Sent notification to {username} (Chat ID: {chat_id})")
         except Exception as e:
@@ -386,7 +357,7 @@ def add_quiz_question(context, quiz_question, chat_id, day):
         correct_option_id=quiz_question.correct_answer_position,
         open_period=QUIZ_TIMEOUT_SECONDS,
         is_anonymous=False,
-        explanation="Don't be sad"
+        explanation="Ты не глупый. Просто так бывает"
     )
     
     # Сохраняем данные опроса
@@ -416,24 +387,24 @@ def poll_handler(update, context):
     response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     username = poll_answer.user.username if poll_answer.user.username else "Unknown"
 
-    # Add the user to poll_participants if they are not already in it
+    # Добавляем пользователя в poll_participants, если его еще нет
     if poll_id not in poll_participants:
         poll_participants[poll_id] = set()
     poll_participants[poll_id].add(user_id)
 
-    # Record the result in the table
+    # Записываем результат в таблицу
     record_user_response(user_id=user_id, username=username, day=day, response_time=response_time, result=is_correct)
 
-    # Send a message to the user
+    # Отправляем сообщение пользователю
     if is_correct:
         context.bot.send_message(
             chat_id=user_id,
-            text="🎉Congratulations, your answer is correct!\n\n🏁We will now wait for all participants to complete the game.\n\n✨After that, we will randomly select 20 winners from those who answered correctly.\n\n☘️Good luck!"
+            text="Поздравляем, ваш ответ правильный! 🎉 Теперь мы подождем, пока все участники завершат игру. После этого мы случайным образом выберем 20 победителей среди тех, кто ответил верно. Удачи!"
         )
     else:
         context.bot.send_message(
             chat_id=user_id,
-            text="❌ Oops, that’s the wrong answer!\n\nBut don’t give up!\n\n🤗Try again tomorrow."
+            text="❌ Упс, это неправильный ответ! Но не сдавайтесь! 🎯 Попробуйте завтра снова."
         )
 
 # Check if user is authorized
@@ -469,14 +440,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(22, 37),  # Уведомление в 14:55 по UTC
+        time=dt_time(15, 18),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(22, 38)  # Викторина в 15:00 по UTC
+        time=dt_time(15, 19)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
