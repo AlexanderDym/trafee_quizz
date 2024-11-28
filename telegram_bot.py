@@ -496,6 +496,6 @@ def main():
     updater.start_polling()
     logging.info("Bot started in polling mode")
 
-if __name__ == "__main__":
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-    main()
+
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+main()
