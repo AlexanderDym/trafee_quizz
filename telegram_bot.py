@@ -168,6 +168,15 @@ def start_command_handler(update, context):
     chat_id = update.effective_chat.id
     username = user.username if user.username else "Unknown"
 
+    # Проверяем, авторизован ли пользователь
+    if not is_authorized_user(update):
+        logging.warning(f"Unauthorized access attempt by @{username}.")
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="⛔ Sorry, you are not authorized to use this bot."
+        )
+        return
+
     # Check if the user has already started the bot
     if username in user_participation:
         # Log the repeated start attempt
@@ -453,7 +462,27 @@ def poll_handler(update, context):
 # Check if user is authorized
 def is_authorized_user(update):
     user = update.effective_user
-    return user.username == SUPERADMIN_USERNAME or user.username in authorized_usernames
+    username = user.username if user.username else "Unknown"
+
+    # Проверка на суперпользователя
+    if username == SUPERADMIN_USERNAME:
+        return True
+
+    # Проверка в статическом списке `authorized_usernames`
+    if username in authorized_usernames:
+        return True
+
+    # Динамическая проверка регистрационного лога
+    try:
+        with open(csv_file_path, mode="r", encoding="utf-8") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if username == row[1]:  # Проверяем вторую колонку (Telegram Username)
+                    return True
+    except Exception as e:
+        logging.error(f"Ошибка чтения регистрационного лога {csv_file_path}: {e}")
+
+    return False
 
 # Main function
 def main():
@@ -483,14 +512,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(16, 1),  # Уведомление в 14:55 по UTC
+        time=dt_time(21, 32),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(16, 11)  # Викторина в 15:00 по UTC
+        time=dt_time(21, 33)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
