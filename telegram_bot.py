@@ -74,11 +74,12 @@ def initialize_excel():
         wb = Workbook()
         for i in range(1, 8):
             sheet = wb.create_sheet(title=f"Day {i}")
-            headers = ["User ID", "Username", "Response Time", "Correct Answer"]
+            headers = ["User ID", "Username", "Response Time", "Correct Answer", "Winner"]
             sheet.append(headers)
         wb.remove(wb["Sheet"])
         wb.save(file_path)
         logging.info(f"Excel file initialized with sheets for each quiz day at {file_path}")
+
 
 # Class for quiz questions
 class QuizQuestion:
@@ -264,10 +265,18 @@ def select_winners(context, day):
 
     prize_message = prizes[day] if day < len(prizes) else "🎁 Today's prize will be announced later!"
 
-    # Отправляем сообщение победителям
+    # Отмечаем победителей в таблице
     for winner in winners:
         user_id = winner[0]
         if user_id not in notified_winners_global:
+            # Найти строку победителя в таблице и отметить его
+            for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
+                if row[0].value == user_id:  # Сравниваем user_id
+                    winner_cell = row[len(row) - 1]  # Последняя колонка
+                    winner_cell.value = "Winner"
+                    winner_cell.fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")  # Золотой цвет
+
+            # Отправляем сообщение победителям
             context.bot.send_message(
                 chat_id=user_id,
                 text=f"🎉 Congratulations!\n\nYou are the winner of the day! 🏆✨\n\n🎁Your prize {prize_message}\n\n🤑Please contact your manager to claim your prize."
@@ -284,6 +293,10 @@ def select_winners(context, day):
             )
             notified_winners_global.add(user_id)
 
+    # Сохраняем изменения в таблице
+    wb.save(file_path)
+    logging.info(f"Winners for day {day + 1} have been recorded in the Excel sheet.")
+
     # Отправляем напоминание через 5 секунд всем участникам
     for username, chat_id in user_chat_mapping.items():
         context.job_queue.run_once(
@@ -291,6 +304,7 @@ def select_winners(context, day):
             when=5,  # Задержка в секундах
             context={'chat_id': chat_id}
         )
+
 
 
 # Callback for participating in quiz
@@ -469,14 +483,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(8, 0),  # Уведомление в 14:55 по UTC
+        time=dt_time(10, 10),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(8, 3)  # Викторина в 15:00 по UTC
+        time=dt_time(10, 11)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
