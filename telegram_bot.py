@@ -461,7 +461,7 @@ def main():
 
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
     print(f"!!!!!!!!!!!!!{TELEGRAM_TOKEN}")
-    
+
     if not TELEGRAM_TOKEN:
         logging.error("TELEGRAM_TOKEN is not set. Exiting.")
         return
@@ -498,6 +498,6 @@ def main():
     updater.start_polling()
     logging.info("Bot started in polling mode")
 
-if __name__ == "__main__":
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-    main()
+
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+main()
