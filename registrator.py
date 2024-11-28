@@ -196,8 +196,16 @@ def send_user_list(update: Update, context: CallbackContext):
         update.message.reply_text("❌ The user list file is missing. Please check and try again.")
 
 
-# Основная функция
 def main():
+    # Получение переменных окружения
+    APP_URL = os.getenv("APP_URL")  # URL приложения
+    PORT = int(os.getenv("PORT", "8443"))  # Порт для Webhook
+
+    if not APP_URL:
+        logging.error("APP_URL is not set. Exiting.")
+        return
+
+    # Создание Updater и Dispatcher
     updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
@@ -218,10 +226,19 @@ def main():
     # Команда для отправки таблицы
     dp.add_handler(CommandHandler("user_list", send_user_list))
 
-    # Запуск бота
-    updater.start_polling()
-    logging.info("Регистрационный бот запущен")
+    # Настройка Webhook
+    webhook_url = f"{APP_URL}/{TELEGRAM_TOKEN}"
+    updater.start_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TELEGRAM_TOKEN,
+        webhook_url=webhook_url
+    )
+
+    logging.info(f"Webhook started at {webhook_url}")
+
     updater.idle()
+
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)

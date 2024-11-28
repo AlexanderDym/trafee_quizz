@@ -1,2 +1,2 @@
-worker-quiz: python telegram_bot.py
-worker-registrar: python registrator.py
+registrator: python registrator.py
+quiz: python quiz_bot.py
