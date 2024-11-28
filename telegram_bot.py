@@ -460,8 +460,6 @@ def main():
     initialize_excel()
 
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-    print(f"!!!!!!!!!!!!!{TELEGRAM_TOKEN}")
-
     if not TELEGRAM_TOKEN:
         logging.error("TELEGRAM_TOKEN is not set. Exiting.")
         return
@@ -492,12 +490,12 @@ def main():
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(16, 2)  # Викторина в 15:00 по UTC
+        time=dt_time(16, 11)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
     logging.info("Bot started in polling mode")
 
-
-#logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-#main()
+if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+    main()

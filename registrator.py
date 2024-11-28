@@ -22,7 +22,6 @@ load_dotenv(dotenv_path=Path('.') / 'trafee.env')
 
 # Получение токена из trafee.env
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_REGISTRATOR")
-print(f"!!!!!!!!!!!!!{TELEGRAM_TOKEN}")
 
 if not TELEGRAM_TOKEN:
     raise ValueError("Токен не найден. Убедитесь, что переменная TELEGRAM_TOKEN_REGISTRATOR задана в файле trafee.env.")
@@ -30,7 +29,7 @@ if not TELEGRAM_TOKEN:
 # Путь к таблице
 allowed_users_file = "user_list.xlsx"  # Excel-файл с разрешёнными пользователями
 registration_log_file = "registration_log.csv"  # CSV-файл для регистрации
-main_bot_link = "https://t.me/trafee_quiz_bot"  # Ссылка на основного бота
+main_bot_link = "https://t.me/trafee_quizzy_bot"  # Ссылка на основного бота
 
 # Состояния для ConversationHandler
 ASK_TRAFFEE_USERNAME = range(1)
@@ -224,6 +223,6 @@ def main():
     logging.info("Регистрационный бот запущен")
     updater.idle()
 
-
-#logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-#main()
+if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+    main()
