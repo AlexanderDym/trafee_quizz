@@ -499,5 +499,5 @@ def main():
     logging.info("Bot started in polling mode")
 
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-main()
+#logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+#main()
