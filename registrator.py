@@ -198,10 +198,19 @@ def send_user_list(update: Update, context: CallbackContext):
 
 # Основная функция
 def main():
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_REGISTRATOR")
+    APP_URL = os.getenv("APP_URL")
+    PORT = int(os.getenv("PORT", "8080"))  # Порт для Webhook
+
+    if not APP_URL or not TELEGRAM_TOKEN:
+        logging.error("APP_URL или TELEGRAM_TOKEN_REGISTRATOR не настроены.")
+        return
+
+    # Настройка Updater и Dispatcher
     updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    # ConversationHandler для регистрации
+    # Настройка ConversationHandler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -212,16 +221,27 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-
     dp.add_handler(conv_handler)
 
-    # Команда для отправки таблицы
+    # Добавляем команду для отправки списка пользователей
     dp.add_handler(CommandHandler("user_list", send_user_list))
 
-    # Запуск бота
-    updater.start_polling()
-    logging.info("Регистрационный бот запущен")
+    # Настройка Webhook
+    webhook_url = f"https://{APP_URL}/{TELEGRAM_TOKEN}"
+    updater.start_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TELEGRAM_TOKEN,
+        webhook_url=webhook_url
+    )
+
+    logging.info(f"Webhook started at {webhook_url}")
     updater.idle()
+
+if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+    main()
+
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
