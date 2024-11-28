@@ -1,2 +1,2 @@
 registrator: python registrator.py
-quiz: python quiz_bot.py
+quiz: python telegram_bot.py
