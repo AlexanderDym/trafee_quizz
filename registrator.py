@@ -22,6 +22,7 @@ load_dotenv(dotenv_path=Path('.') / 'trafee.env')
 
 # Получение токена из trafee.env
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_REGISTRATOR")
+print(f"!!!!!!!!!!!!!{TELEGRAM_TOKEN}")
 
 if not TELEGRAM_TOKEN:
     raise ValueError("Токен не найден. Убедитесь, что переменная TELEGRAM_TOKEN_REGISTRATOR задана в файле trafee.env.")
@@ -198,19 +199,10 @@ def send_user_list(update: Update, context: CallbackContext):
 
 # Основная функция
 def main():
-    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_REGISTRATOR")
-    APP_URL = os.getenv("APP_URL")
-    PORT = int(os.getenv("PORT", "8080"))  # Порт для Webhook
-
-    if not APP_URL or not TELEGRAM_TOKEN:
-        logging.error("APP_URL или TELEGRAM_TOKEN_REGISTRATOR не настроены.")
-        return
-
-    # Настройка Updater и Dispatcher
     updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    # Настройка ConversationHandler
+    # ConversationHandler для регистрации
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -221,27 +213,16 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
     dp.add_handler(conv_handler)
 
-    # Добавляем команду для отправки списка пользователей
+    # Команда для отправки таблицы
     dp.add_handler(CommandHandler("user_list", send_user_list))
 
-    # Настройка Webhook
-    webhook_url = f"https://{APP_URL}/{TELEGRAM_TOKEN}"
-    updater.start_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TELEGRAM_TOKEN,
-        webhook_url=webhook_url
-    )
-
-    logging.info(f"Webhook started at {webhook_url}")
+    # Запуск бота
+    updater.start_polling()
+    logging.info("Регистрационный бот запущен")
     updater.idle()
-
-if __name__ == "__main__":
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-    main()
-
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
