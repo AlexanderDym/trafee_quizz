@@ -254,6 +254,20 @@ def send_reminder(context: CallbackContext):
         )
     )
 
+
+def send_reminder_to_all(context: CallbackContext):
+    for username, chat_id in user_chat_mapping.items():
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                "🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨ "
+                "Don’t miss your chance to win more amazing prizes.\n\n"
+                "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
+                "to make sure you're ready to shine! 🌟 See you there!"
+            )
+        )
+
+
 def select_winners(context, day):
     global notified_winners_global
     wb = load_workbook(file_path)
@@ -306,14 +320,11 @@ def select_winners(context, day):
     wb.save(file_path)
     logging.info(f"Winners for day {day + 1} have been recorded in the Excel sheet.")
 
-    # Отправляем напоминание через 5 секунд всем участникам
-    for username, chat_id in user_chat_mapping.items():
-        context.job_queue.run_once(
-            send_reminder,
-            when=5,  # Задержка в секундах
-            context={'chat_id': chat_id}
-        )
-
+    # Отправляем одно напоминание всем участникам через 5 секунд
+    context.job_queue.run_once(
+        send_reminder_to_all,
+        when=5,  # Задержка в секундах
+    )
 
 
 # Callback for participating in quiz
