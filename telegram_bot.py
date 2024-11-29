@@ -21,6 +21,7 @@ load_dotenv(dotenv_path=Path('.') / 'trafee.env')
 QUIZ_TIMEOUT_SECONDS = 30
 
 # Global mapping of usernames to chat IDs
+joined_users = {}  # username -> chat_id
 user_chat_mapping = {}
 poll_participants = {}  # poll_id -> set(user_id)
 user_participation = {} # Обработка нажатия команды старт
@@ -168,15 +169,6 @@ def start_command_handler(update, context):
     chat_id = update.effective_chat.id
     username = user.username if user.username else "Unknown"
 
-    # Проверяем, авторизован ли пользователь
-    if not is_authorized_user(update):
-        logging.warning(f"Unauthorized access attempt by @{username}.")
-        context.bot.send_message(
-            chat_id=chat_id,
-            text="⛔ Sorry, you are not authorized to use this bot."
-        )
-        return
-
     # Check if the user has already started the bot
     if username in user_participation:
         # Log the repeated start attempt
@@ -248,25 +240,26 @@ def send_reminder(context: CallbackContext):
         chat_id=chat_id,
         text=(
             "🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨ "
-            "Don’t miss your chance to win more amazing prizes.\n\n"
-            "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
-            "to make sure you're ready to shine! 🌟 See you there!"
+                     "Don’t miss your chance to win more amazing prizes.\n\n"
+                     "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
+                     "to make sure you're ready to shine! 🌟 See you there!"
         )
     )
 
-
-def send_reminder_to_all(context: CallbackContext):
-    for username, chat_id in user_chat_mapping.items():
-        context.bot.send_message(
-            chat_id=chat_id,
-            text=(
-                "🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨ "
-                "Don’t miss your chance to win more amazing prizes.\n\n"
-                "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
-                "to make sure you're ready to shine! 🌟 See you there!"
+def notify_users_about_next_day(context):
+    for username, chat_id in joined_users.items():  # Используем список пользователей, которые нажали Join Quiz
+        try:
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨\n\n"
+                     "Don’t miss your chance to win more amazing prizes.\n\n"
+                     "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
+                     "to make sure you're ready to shine! 🌟 See you there!"
             )
-        )
-
+            logging.info(f"Reminder for next day sent to {username} (Chat ID: {chat_id})")
+        except Exception as e:
+            logging.error(f"Failed to send next day reminder to {username}: {e}")
+    
 
 def select_winners(context, day):
     global notified_winners_global
@@ -274,56 +267,54 @@ def select_winners(context, day):
     sheet_name = f"Day {day + 1}"
     sheet = wb[sheet_name]
 
-    # Собираем правильные ответы
+    # Собираем правильные ответы только для текущего дня
     correct_users = []
     for row in sheet.iter_rows(min_row=2, values_only=True):
-        if row[3] == "Верно":
+        if row[3] == "Верно" and row[4] != "Winner":  # Ответ "Верно" и не отмечен как победитель
             correct_users.append(row)
 
-    # Выбираем победителей
-    if len(correct_users) > 5:
-        winners = random.sample(correct_users, 5)
+    if not correct_users:
+        logging.info(f"No correct answers for Day {day + 1}. No winners selected.")
+
     else:
-        winners = correct_users
+        # Выбираем победителей
+        if len(correct_users) > 5:
+            winners = random.sample(correct_users, 5)
+        else:
+            winners = correct_users
 
-    prize_message = prizes[day] if day < len(prizes) else "🎁 Today's prize will be announced later!"
+        prize_message = prizes[day] if day < len(prizes) else "🎁 Today's prize will be announced later!"
 
-    # Отмечаем победителей в таблице
-    for winner in winners:
-        user_id = winner[0]
-        if user_id not in notified_winners_global:
-            # Найти строку победителя в таблице и отметить его
-            for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
-                if row[0].value == user_id:  # Сравниваем user_id
-                    winner_cell = row[len(row) - 1]  # Последняя колонка
-                    winner_cell.value = "Winner"
-                    winner_cell.fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")  # Золотой цвет
+        # Отправляем сообщение только победителям
+        for winner in winners:
+            user_id = winner[0]
+            if user_id not in notified_winners_global:
+                try:
+                    # Отправляем сообщение победителю
+                    context.bot.send_message(
+                        chat_id=user_id,
+                        text=f"🎉 Congratulations!\n\nYou are the winner of the day! 🏆✨\n\n🎁Your prize {prize_message}\n\n🤑Please contact your manager to claim your prize."
+                    )
+                    logging.info(f"Winner notification sent to user ID: {user_id}")
+                    notified_winners_global.add(user_id)
 
-            # Отправляем сообщение победителям
-            context.bot.send_message(
-                chat_id=user_id,
-                text=f"🎉 Congratulations!\n\nYou are the winner of the day! 🏆✨\n\n🎁Your prize {prize_message}\n\n🤑Please contact your manager to claim your prize."
-            )
-            notified_winners_global.add(user_id)
+                    # Обновляем запись в таблице
+                    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
+                        if row[0].value == user_id:  # Сравниваем user_id
+                            row[len(row) - 1].value = "Winner"
+                            row[len(row) - 1].fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
 
-    # Отправляем утешительное сообщение остальным
-    for user in correct_users:
-        if user not in winners and user[0] not in notified_winners_global:
-            user_id = user[0]
-            context.bot.send_message(
-                chat_id=user_id,
-                text="Your answer is correct, but luck wasn't on your side this time 😉.\n\n Try again tomorrow!🎯"
-            )
-            notified_winners_global.add(user_id)
+                except Exception as e:
+                    logging.error(f"Failed to send winner notification to user ID: {user_id}: {e}")
 
     # Сохраняем изменения в таблице
     wb.save(file_path)
-    logging.info(f"Winners for day {day + 1} have been recorded in the Excel sheet.")
+    logging.info(f"Winners for Day {day + 1} have been recorded in the Excel sheet.")
 
-    # Отправляем одно напоминание всем участникам через 5 секунд
+    # Отправляем напоминание всем, кто присоединился к викторине
     context.job_queue.run_once(
-        send_reminder_to_all,
-        when=5,  # Задержка в секундах
+        lambda _: notify_users_about_next_day(context),
+        when=5  # Задержка в 5 секунд
     )
 
 
@@ -331,28 +322,19 @@ def select_winners(context, day):
 def participate_handler(update, context):
     query = update.callback_query
     query.answer()
-    
+
     user = query.from_user
     chat_id = query.message.chat_id
     username = user.username if user.username else "Unknown"
 
-    # Check if the user has already participated
-    if username in quiz_participation:
-        # If the user already participated, send a message
-        context.bot.send_message(
-            chat_id=chat_id,
-            text="You've already joined today's quiz⭐.\n\nWait for the next question tomorrow! 😊"
-        )
-        logging.warning(f"{datetime.now()} - User @{username} tried to click 'Participate in the quiz' again.")
-        return
-
-    # If the user is new, register their participation
-    quiz_participation[username] = {"participated": True, "timestamp": datetime.now()}
+    # Сохраняем пользователя, если он нажал Join Quiz
+    if username not in joined_users:
+        joined_users[username] = chat_id
+        logging.info(f"User @{username} joined the quiz for the first time.")
     
-    # Send a message confirming participation
     context.bot.send_message(
         chat_id=chat_id,
-        text="Welcome aboard!🚀\n\nThe quiz starts sharp at 15:00 🤩.\n\nRelax for now!😎\n\nWe'll send you a reminder 3 minutes before it begins!\n\nEverything to help you grab our awesome prizes! 🎁"
+        text="Welcome aboard!🚀\n\nThe quiz starts sharp at 15:00 🤩.\n\nRelax for now!😎\n\nWe'll send you a reminder 3 minutes before it begins!"
     )
 
 
@@ -390,23 +372,16 @@ def send_daily_quiz(context, day):
 
 # Function to notify users about the quiz
 def notify_users_about_quiz(context):
-    """Notifies all participants that the quiz will start in 1 minute."""
-    current_day = context.dispatcher.bot_data.get('current_day', 0)
-
-    if not user_chat_mapping:
-        logging.warning("⚠️ No users to notify about the quiz.")
-        return
-
-    for username, chat_id in user_chat_mapping.items():
+    for username, chat_id in joined_users.items():  # Используем список пользователей, которые нажали Join Quiz
         try:
             context.bot.send_message(
                 chat_id=chat_id,
-                text="The quiz will start in 3 minutes!🔔\n\n🔥Get ready!"
+                text="The quiz will start in 3 minutes!🔔\n\n"
+                "🔥Get ready!"
             )
-            logging.info(f"Sent notification to {username} (Chat ID: {chat_id})")
+            logging.info(f"Reminder sent to {username} (Chat ID: {chat_id})")
         except Exception as e:
-            logging.error(f"Failed to notify user {username} (Chat ID: {chat_id}): {e}")
-
+            logging.error(f"Failed to send reminder to {username}: {e}")
 
 
 
@@ -473,27 +448,7 @@ def poll_handler(update, context):
 # Check if user is authorized
 def is_authorized_user(update):
     user = update.effective_user
-    username = user.username if user.username else "Unknown"
-
-    # Проверка на суперпользователя
-    if username == SUPERADMIN_USERNAME:
-        return True
-
-    # Проверка в статическом списке `authorized_usernames`
-    if username in authorized_usernames:
-        return True
-
-    # Динамическая проверка регистрационного лога
-    try:
-        with open(csv_file_path, mode="r", encoding="utf-8") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if username == row[1]:  # Проверяем вторую колонку (Telegram Username)
-                    return True
-    except Exception as e:
-        logging.error(f"Ошибка чтения регистрационного лога {csv_file_path}: {e}")
-
-    return False
+    return user.username == SUPERADMIN_USERNAME or user.username in authorized_usernames
 
 # Main function
 def main():
@@ -523,14 +478,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(10, 20),  # Уведомление в 14:55 по UTC
+        time=dt_time(13, 2),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(10, 21)  # Викторина в 15:00 по UTC
+        time=dt_time(13, 3)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
