@@ -234,18 +234,6 @@ def handle_poll_timeout(context):
 
 from telegram.ext import JobQueue, CallbackContext
 
-def send_reminder(context: CallbackContext):
-    chat_id = context.job.context['chat_id']
-    context.bot.send_message(
-        chat_id=chat_id,
-        text=(
-            "🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨ "
-                     "Don’t miss your chance to win more amazing prizes.\n\n"
-                     "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
-                     "to make sure you're ready to shine! 🌟 See you there!"
-        )
-    )
-
 def notify_users_about_next_day(context):
     for username, chat_id in joined_users.items():  # Используем список пользователей, которые нажали Join Quiz
         try:
@@ -275,7 +263,6 @@ def select_winners(context, day):
 
     if not correct_users:
         logging.info(f"No correct answers for Day {day + 1}. No winners selected.")
-
     else:
         # Выбираем победителей
         if len(correct_users) > 5:
@@ -311,11 +298,17 @@ def select_winners(context, day):
     wb.save(file_path)
     logging.info(f"Winners for Day {day + 1} have been recorded in the Excel sheet.")
 
-    # Отправляем напоминание всем, кто присоединился к викторине
-    context.job_queue.run_once(
-        lambda _: notify_users_about_next_day(context),
-        when=5  # Задержка в 5 секунд
-    )
+    # Проверяем, есть ли уже активная задача для уведомления
+    existing_jobs = [job.name for job in context.job_queue.jobs()]
+    if "next_day_reminder" not in existing_jobs:
+        # Отправляем напоминание всем, кто присоединился к викторине
+        context.job_queue.run_once(
+            lambda _: notify_users_about_next_day(context),
+            when=5,  # Задержка в 5 секунд
+            name="next_day_reminder"  # Название задачи для предотвращения дублирования
+        )
+    else:
+        logging.warning("Reminder job for the next day already exists. Skipping duplicate scheduling.")
 
 
 # Callback for participating in quiz
@@ -478,14 +471,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(13, 54),  # Уведомление в 14:55 по UTC
+        time=dt_time(14, 16),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(13, 53)  # Викторина в 15:00 по UTC
+        time=dt_time(14, 17)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
