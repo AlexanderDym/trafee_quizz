@@ -241,7 +241,7 @@ def notify_users_about_next_day(context):
                 chat_id=chat_id,
                 text="🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨\n\n"
                      "Don’t miss your chance to win more amazing prizes.\n\n"
-                     "🕒 The fun starts at 15:00 sharp, and we’ll send you a reminder 3 minutes before "
+                     "🕒 The fun starts at 15:00 UTC sharp, and we’ll send you a reminder 3 minutes before "
                      "to make sure you're ready to shine! 🌟 See you there!"
             )
             logging.info(f"Reminder for next day sent to {username} (Chat ID: {chat_id})")
@@ -327,7 +327,7 @@ def participate_handler(update, context):
     
     context.bot.send_message(
         chat_id=chat_id,
-        text="Welcome aboard!🚀\n\nThe quiz starts sharp at 15:00 🤩.\n\nRelax for now!😎\n\nWe'll send you a reminder 3 minutes before it begins!"
+        text="Welcome aboard!🚀\n\nThe quiz starts sharp at 15:00 UTC🤩.\n\nRelax for now!😎\n\nWe'll send you a reminder 3 minutes before it begins!"
     )
 
 
@@ -369,7 +369,7 @@ def notify_users_about_quiz(context):
         try:
             context.bot.send_message(
                 chat_id=chat_id,
-                text="The quiz will start in 3 minutes!🔔\n\n"
+                text="The quiz will start in 5 minutes!🔔\n\n"
                 "🔥Get ready!"
             )
             logging.info(f"Reminder sent to {username} (Chat ID: {chat_id})")
@@ -471,14 +471,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(8, 35),  # Уведомление в 14:55 по UTC
+        time=dt_time(13, 55),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(8, 40)  # Викторина в 15:00 по UTC
+        time=dt_time(14, 0)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
