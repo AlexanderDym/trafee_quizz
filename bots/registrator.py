@@ -96,7 +96,17 @@ def start(update: Update, context: CallbackContext):
 def check_username(update: Update, context: CallbackContext):
     username = update.message.text.strip()
 
-    participant = database.get_user_by_trafee_username(username)
+    already_registered = database.get_participant_by_telegram_id(str(update.message.from_user.id))
+
+    if already_registered:
+        update.message.reply_text(
+            f"✅ {already_registered.trafee_username}, you're already registered!\n\n"
+            f"Here's the link to [the main bot]({main_bot_link}) to continue your journey. 🚀",
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+
+    participant = database.register_user_by_trafee_username(username)
 
     if participant:
         if participant.telegram_id:
@@ -119,6 +129,7 @@ def check_username(update: Update, context: CallbackContext):
             )
             participant.telegram_id = update.message.from_user.id
             participant.telegram_username = update.message.from_user.name
+            participant.name = update.message.from_user.first_name
             database.update_participant(participant)
             return ConversationHandler.END
 

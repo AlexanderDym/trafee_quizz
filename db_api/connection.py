@@ -159,7 +159,29 @@ class Database:
             logger.error(f"Error updating participant {participant.trafee_username}: {str(e)}")
             return False
         
-    def get_user_by_trafee_username(self, username: str) -> models.Participant|None:
+
+    def get_participant_by_telegram_id(self, telegram_id: str) -> models.Participant|None:
+        """
+        Check if user exists in Participant table by their Telegram ID
+        
+        Args:
+            telegram_id: User's Telegram ID to check
+                
+        Returns:
+            Participant object if found, None otherwise
+        """
+        try:
+            with self.get_db() as session:
+                participant = session.query(models.Participant).filter(
+                    models.Participant.telegram_id == telegram_id
+                ).first()
+                return participant
+                
+        except Exception as e:
+            logging.error(f"Error checking user with Telegram ID {telegram_id}: {str(e)}")
+            return None
+    
+    def register_user_by_trafee_username(self, username: str) -> models.Participant|None:
         """
         Check if user exists in Participant table and if they're registered
         
