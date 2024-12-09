@@ -6,9 +6,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Poll
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, PollAnswerHandler, JobQueue, CallbackContext
 from datetime import datetime, time as dt_time
 from dotenv import load_dotenv
-import openpyxl
-from openpyxl.styles import PatternFill
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
+from excel_api import initialize_excel, record_user_response, load_authorized_usernames
 import csv
 from datetime import datetime, timezone
 import random
@@ -20,24 +19,18 @@ load_dotenv(dotenv_path=Path('.') / 'trafee.env')
 # Timer for quiz
 QUIZ_TIMEOUT_SECONDS = 30
 
-# Global mapping of usernames to chat IDs
-joined_users = {}  # username -> chat_id
-user_chat_mapping = {}
+# Global mapping of usernames to chat IDs and their states
+user_chat_mapping = {}  # username -> {"chat_id": int, "joined": bool}
 poll_participants = {}  # poll_id -> set(user_id)
-user_participation = {} # Обработка нажатия команды старт
-quiz_participation= {} # Обработка нажатия Участия в викторине
-notified_winners_global = set()
+notified_winners_global = set()  # users who were notified as winners
 
-# Список призов для каждого дня викторины
-prizes = [
-    "is a 1-month Spotify Premium subscription!",
-    "is a $20 Amazon gift card!",
-    "is a 1-month Netflix subscription!",
-    "is exclusive merchandise from our company!",
-    "is a 1-month YouTube Premium subscription!",
-    "is a bestselling e-book!",
-    "is a $15 food delivery voucher!"
-]
+
+# Configuration for users and admins
+csv_file_path = "registration_log.csv"
+authorized_usernames = load_authorized_usernames(csv_file_path)
+SUPERADMIN_USERNAME = "Alexander_Dym"
+file_path = "updated_bot_list.xlsx"
+gifts_file_path = "gifts.xlsx"
 
 
 # Function to update chat ID mapping
@@ -48,38 +41,6 @@ def update_user_chat_mapping(username, chat_id):
 def get_chat_id_by_username(username):
     return user_chat_mapping.get(username)
 
-# Function to load authorized usernames from CSV
-def load_authorized_usernames(file_path):
-    usernames = []
-    try:
-        with open(file_path, mode="r", encoding="utf-8") as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                if "Telegram Username" in row:
-                    usernames.append(row["Telegram Username"])
-    except FileNotFoundError:
-        logging.warning(f"⚠️ File {file_path} not found. Authorized user list will be empty.")
-    except Exception as e:
-        logging.error(f"⚠️ Error reading file {file_path}: {e}")
-    return usernames
-
-# Configuration for users and admins
-csv_file_path = "registration_log.csv"
-authorized_usernames = load_authorized_usernames(csv_file_path)
-SUPERADMIN_USERNAME = "Alexander_Dym"
-file_path = "updated_bot_list.xlsx"
-
-# Initialize the Excel file
-def initialize_excel():
-    if not os.path.exists(file_path):
-        wb = Workbook()
-        for i in range(1, 8):
-            sheet = wb.create_sheet(title=f"Day {i}")
-            headers = ["User ID", "Username", "Response Time", "Correct Answer", "Winner"]
-            sheet.append(headers)
-        wb.remove(wb["Sheet"])
-        wb.save(file_path)
-        logging.info(f"Excel file initialized with sheets for each quiz day at {file_path}")
 
 
 # Class for quiz questions
@@ -107,46 +68,77 @@ quiz_questions = [
     QuizQuestion("What Does CPM Mean in Holiday Advertising? 🎅📊", ["Cost Per Million (cost for one million clicks)", "Cost Per Millisecond (cost for one millisecond)", "Cost Per Mille (cost for one thousand impressions)"], "Cost Per Mille (cost for one thousand impressions)"),
 ]
 
-# Record user response in Excel
-def record_user_response(user_id, username, day, response_time, result):
-    wb = load_workbook(file_path)
-    sheet_name = f"Day {day + 1}"
 
-    if sheet_name not in wb.sheetnames:
-        wb.create_sheet(title=sheet_name)
-    sheet = wb[sheet_name]
+def distribute_gifts(day, winners, context):
+    """
+    Распределяет подарки между победителями и обновляет файлы.
 
-    green_fill = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
-    red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-    result_text = "Верно" if result else "Неверно"
-    result_fill = green_fill if result else red_fill
+    :param day: Текущий день викторины (1-7).
+    :param winners: Список победителей в формате [(user_id, username), ...].
+    :param context: CallbackContext для отправки сообщений.
+    """
+    # Загружаем таблицу подарков
+    gifts_wb = load_workbook(gifts_file_path)
+    gifts_sheet = gifts_wb[f"Day {day}"]
 
-    # Проверяем, существует ли уже запись для этого пользователя
-    user_found = False
-    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
-        if row[0].value == user_id:  # Проверяем по user_id
-            row[2].value = response_time  # Обновляем время ответа
-            row[3].value = result_text  # Обновляем результат
-            row[3].fill = result_fill  # Применяем цвет
-            user_found = True
+    # Загружаем файл с пользователями
+    users_wb = load_workbook(file_path)
+    users_sheet = users_wb[f"Day {day}"]
+
+    # Получаем подарки текущего дня
+    available_gifts = []
+    for row in gifts_sheet.iter_rows(min_row=2, values_only=True):
+        gift_name, quantity, remaining = row
+        if remaining > 0:
+            available_gifts.append((gift_name, remaining))
+
+    if not available_gifts:
+        logging.warning(f"No gifts available for Day {day}.")
+        return
+
+    for user_id, username in winners:
+        if not available_gifts:
+            logging.warning(f"All gifts for Day {day} have been distributed.")
             break
 
-    if not user_found:
-        # Если записи нет, добавляем новую
-        new_row = [user_id, username, response_time, result_text]
-        sheet.append(new_row)
+        # Выбираем случайный подарок
+        selected_gift = random.choice(available_gifts)
+        gift_name, remaining = selected_gift
 
-        # Применяем цвет заливки к новой строке
-        for cell in sheet.iter_rows(min_row=sheet.max_row, max_row=sheet.max_row, min_col=1, max_col=4):
-            if cell[3].value == "Верно":
-                cell[3].fill = green_fill
-            elif cell[3].value == "Неверно":
-                cell[3].fill = red_fill
+        # Уменьшаем остаток подарка в таблице
+        for row in gifts_sheet.iter_rows(min_row=2):
+            if row[0].value == gift_name:
+                row[2].value -= 1  # Уменьшаем остаток
+                break
 
-    wb.save(file_path)
-    logging.info(f"Результат для пользователя {username} записан: {result_text}")
+        # Записываем победителя в файл пользователей
+        winner_found = False
+        for row in users_sheet.iter_rows(min_row=2):
+            if row[0].value == user_id:  # Сравниваем ID пользователя
+                row[4].value = "Winner"  # Отмечаем статус
+                row[5].value = gift_name  # Название подарка
+                winner_found = True
+                break
 
+        if not winner_found:
+            # Если записи нет, добавляем новую строку
+            users_sheet.append([user_id, username, None, None, "Winner", gift_name])
 
+        # Убираем подарок из доступных, если остаток стал 0
+        if remaining - 1 == 0:
+            available_gifts = [g for g in available_gifts if g[0] != gift_name]
+
+        # Отправляем пользователю сообщение
+        context.bot.send_message(
+            chat_id=user_id,
+            text=f"🎉 Congratulations, {username}! You won: {gift_name} 🎁"
+        )
+
+    # Сохраняем обновления
+    gifts_wb.save(gifts_file_path)
+    users_wb.save(file_path)
+
+    logging.info(f"Gifts for Day {day} distributed and files updated.")
 
 
 # Command for superadmin to get the results file
@@ -169,11 +161,15 @@ def start_command_handler(update, context):
     chat_id = update.effective_chat.id
     username = user.username if user.username else "Unknown"
 
+    # Проверка авторизации
+    if not is_authorized_user(update):
+        logging.warning(f"Unauthorized user @{username} tried to access the bot.")
+        context.bot.send_message(chat_id=chat_id, text="⛔ You are not authorized to use this bot.")
+        return
+
     # Check if the user has already started the bot
-    if username in user_participation:
-        # Log the repeated start attempt
+    if username in user_chat_mapping:
         logging.warning(f"{datetime.now()} - User @{username} tried to press /start again.")
-        # Send a message to the user
         context.bot.send_message(
             chat_id=chat_id,
             text="You're already in the quiz 👻\n\nThe next question will be tomorrow!\n\nDon't be sneaky 😜."
@@ -181,10 +177,9 @@ def start_command_handler(update, context):
         return
 
     # If the user is new, add them to the dictionary
-    user_participation[username] = {"participated": True, "timestamp": datetime.now()}
-    
+    user_chat_mapping[username] = {"chat_id": chat_id, "joined": False}
+
     # Send the welcome message
-    update_user_chat_mapping(username, chat_id)
     image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz.png"
     welcome_text = (
         "*🎄✨ Welcome to the ultimate holiday quiz challenge! 🎅🎁*\n\n"
@@ -205,48 +200,63 @@ def handle_poll_timeout(context):
     poll_id = context.job.context['poll_id']
     day = context.job.context['day']
 
-    # List of users who have already answered
+    # Список пользователей, которые уже ответили
     answered_users = poll_participants.get(poll_id, set())
 
-    # Load Excel and check who is already recorded
+    # Загружаем Excel и проверяем, кто уже записан
     wb = load_workbook(file_path)
     sheet_name = f"Day {day + 1}"
     sheet = wb[sheet_name]
 
-    # List of users already recorded in Excel
-    recorded_users = {row[0] for row in sheet.iter_rows(min_row=2, values_only=True) if row[0]}
+    # Создаём множество с ID пользователей, записанных в Excel
+    recorded_users = {row[0] for row in sheet.iter_rows(min_row=2, values_only=True) if isinstance(row[0], int)}
 
-    for username, chat_id in user_chat_mapping.items():
-        user_id = chat_id  # Assuming chat_id corresponds to user_id
+    for username, user_data in user_chat_mapping.items():
+        chat_id = user_data.get("chat_id")  # Извлекаем chat_id
+        user_id = chat_id  # В данном случае chat_id — это user_id
+
         if user_id in answered_users or user_id in recorded_users:
-            # User has already answered, skip
+            # Пользователь уже ответил, пропускаем
             logging.info(f"User {username} has already answered the question. Timeout skipped.")
             continue
 
-        # If the user hasn't answered, notify them and record the result
-        context.bot.send_message(chat_id=chat_id, text="⏰ Time's up!\n\nYour response was not counted 🥵.")
-        response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        record_user_response(user_id=user_id, username=username, day=day, response_time=response_time, result=False)
+        # Если пользователь не ответил, уведомляем и записываем результат
+        try:
+            context.bot.send_message(chat_id=chat_id, text="⏰ Time's up!\n\nYour response was not counted 🥵.")
+            response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            record_user_response(file_path, user_id=user_id, username=username, day=day, response_time=response_time, result=False)
+        except Exception as e:
+            logging.error(f"Failed to notify user {username} (Chat ID: {chat_id}): {e}")
 
-    # Proceed to selecting winners
+    # Переходим к выбору победителей
     select_winners(context, day)
 
 
-from telegram.ext import JobQueue, CallbackContext
 
 def notify_users_about_next_day(context):
-    for username, chat_id in joined_users.items():  # Используем список пользователей, которые нажали Join Quiz
-        try:
-            context.bot.send_message(
-                chat_id=chat_id,
-                text="🎄 Reminder! Tomorrow is Day 2 of our 7-day holiday giveaway! 🎁✨\n\n"
-                     "Don’t miss your chance to win more amazing prizes.\n\n"
-                     "🕒 The fun starts at 15:00 UTC sharp, and we’ll send you a reminder 3 minutes before "
-                     "to make sure you're ready to shine! 🌟 See you there!"
-            )
-            logging.info(f"Reminder for next day sent to {username} (Chat ID: {chat_id})")
-        except Exception as e:
-            logging.error(f"Failed to send next day reminder to {username}: {e}")
+    day = context.job.context.get('day', 0)  # Получаем текущий день
+    next_day = day + 1  # Завтрашний день
+
+    # Убедимся, что номер дня не превышает 7
+    if next_day > 7:
+        next_day -= 7
+
+    for username, user_data in user_chat_mapping.items():
+        if user_data.get("joined"):
+            chat_id = user_data.get("chat_id")
+            try:
+                context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"🎄 Reminder! Tomorrow is Day {next_day} of our 7-day holiday giveaway! 🎁✨\n\n"
+                         "Don’t miss your chance to win more amazing prizes.\n\n"
+                         "🕒 The fun starts at 15:00 UTC sharp, and we’ll send you a reminder 3 minutes before "
+                         "to make sure you're ready to shine! 🌟 See you there!"
+                )
+                logging.info(f"Reminder for next day sent to {username} (Chat ID: {chat_id})")
+            except Exception as e:
+                logging.error(f"Failed to send next day reminder to {username}: {e}")
+
+
     
 
 def select_winners(context, day):
@@ -255,60 +265,45 @@ def select_winners(context, day):
     sheet_name = f"Day {day + 1}"
     sheet = wb[sheet_name]
 
-    # Собираем правильные ответы только для текущего дня
     correct_users = []
     for row in sheet.iter_rows(min_row=2, values_only=True):
-        if row[3] == "Верно" and row[4] != "Winner":  # Ответ "Верно" и не отмечен как победитель
-            correct_users.append(row)
+        if row[3] == "Верно" and row[4] != "Winner":
+            correct_users.append((row[0], row[1]))  # (user_id, username)
 
     if not correct_users:
         logging.info(f"No correct answers for Day {day + 1}. No winners selected.")
     else:
-        # Выбираем победителей
-        if len(correct_users) > 5:
-            winners = random.sample(correct_users, 5)
-        else:
-            winners = correct_users
+        # Выбираем 5 победителей
+        winners = random.sample(correct_users, min(5, len(correct_users)))
 
-        prize_message = prizes[day] if day < len(prizes) else "🎁 Today's prize will be announced later!"
+        # Распределяем подарки
+        distribute_gifts(day + 1, winners, context)  # Передаем context в distribute_gifts
 
-        # Отправляем сообщение только победителям
+        # Отправляем уведомления победителям
         for winner in winners:
-            user_id = winner[0]
-            if user_id not in notified_winners_global:
-                try:
-                    # Отправляем сообщение победителю
-                    context.bot.send_message(
-                        chat_id=user_id,
-                        text=f"🎉 Congratulations!\n\nYou are the winner of the day! 🏆✨\n\n🎁Your prize {prize_message}\n\n🤑Please contact your manager to claim your prize."
-                    )
-                    logging.info(f"Winner notification sent to user ID: {user_id}")
-                    notified_winners_global.add(user_id)
+            user_id, username = winner
+            #if user_id not in notified_winners_global:
+                #try:
+                    #context.bot.send_message(
+                        #chat_id=user_id,
+                        #text=f"🎉 Congratulations!\n\nYou are the winner of the day! 🏆✨"
+                    #)
+                    #logging.info(f"Winner notification sent to user ID: {user_id}")
+                    #notified_winners_global.add(user_id)
+                #except Exception as e:
+                    #logging.error(f"Failed to send winner notification to user ID: {user_id}: {e}")
 
-                    # Обновляем запись в таблице
-                    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row):
-                        if row[0].value == user_id:  # Сравниваем user_id
-                            row[len(row) - 1].value = "Winner"
-                            row[len(row) - 1].fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
-
-                except Exception as e:
-                    logging.error(f"Failed to send winner notification to user ID: {user_id}: {e}")
-
-    # Сохраняем изменения в таблице
     wb.save(file_path)
     logging.info(f"Winners for Day {day + 1} have been recorded in the Excel sheet.")
 
-    # Проверяем, есть ли уже активная задача для уведомления
-    existing_jobs = [job.name for job in context.job_queue.jobs()]
-    if "next_day_reminder" not in existing_jobs:
-        # Отправляем напоминание всем, кто присоединился к викторине
-        context.job_queue.run_once(
-            lambda _: notify_users_about_next_day(context),
-            when=5,  # Задержка в 5 секунд
-            name="next_day_reminder"  # Название задачи для предотвращения дублирования
-        )
-    else:
-        logging.warning("Reminder job for the next day already exists. Skipping duplicate scheduling.")
+    # Планируем отправку напоминания через 5 секунд
+    context.job_queue.run_once(
+        notify_users_about_next_day,
+        when=5,
+        context={'day': day + 1}
+    )
+    logging.info(f"Reminder for next day scheduled in 5 seconds.")
+
 
 
 # Callback for participating in quiz
@@ -317,18 +312,28 @@ def participate_handler(update, context):
     query.answer()
 
     user = query.from_user
-    chat_id = query.message.chat_id
     username = user.username if user.username else "Unknown"
 
-    # Сохраняем пользователя, если он нажал Join Quiz
-    if username not in joined_users:
-        joined_users[username] = chat_id
-        logging.info(f"User @{username} joined the quiz for the first time.")
-    
-    context.bot.send_message(
-        chat_id=chat_id,
-        text="Welcome aboard!🚀\n\nThe quiz starts sharp at 15:00 UTC🤩.\n\nRelax for now!😎\n\nWe'll send you a reminder 3 minutes before it begins!"
-    )
+    # Проверка авторизации
+    if not is_authorized_user(update):
+        logging.warning(f"Unauthorized user @{username} tried to join the quiz.")
+        query.edit_message_text(text="⛔ You are not authorized to join this quiz.")
+        return
+
+    # Проверка: если пользователь уже нажимал Join Quiz
+    if user_chat_mapping.get(username, {}).get("joined"):
+        logging.info(f"User @{username} tried to join the quiz again.")
+        query.edit_message_text(text="You are already in the quiz! 🚀")
+        return
+
+    # Отметить пользователя как присоединившегося
+    user_chat_mapping[username] = {
+        "chat_id": query.message.chat_id,
+        "joined": True
+    }
+    logging.info(f"User @{username} joined the quiz for the first time.")
+    query.edit_message_text(text="Welcome to the quiz! 🎉")
+
 
 
 
@@ -343,38 +348,42 @@ def send_daily_quiz(context, day):
             logging.warning("⚠️ No users registered for the quiz. Skipping.")
             return
 
-        for username, chat_id in user_chat_mapping.items():
-            # Send the quiz question without mentioning the prize
-            context.bot.send_message(
-                chat_id=chat_id,
-                text="⚡ Today's quiz question:"
-            )
-            add_quiz_question(context, question, chat_id, day)
+        for username, user_data in user_chat_mapping.items():
+            chat_id = user_data.get("chat_id")
+            try:
+                # Логируем отправку сообщения
+                logging.info(f"Sending quiz question to @{username} (Chat ID: {chat_id})")
+                context.bot.send_message(
+                    chat_id=chat_id,
+                    text="⚡ Today's quiz question:"
+                )
+                add_quiz_question(context, question, chat_id, day)
+            except Exception as e:
+                logging.error(f"Failed to send quiz question to @{username} (Chat ID: {chat_id}): {e}")
 
-        # Update current day
+        # Обновляем текущий день
         next_day = (day + 1) % len(quiz_questions)
         context.dispatcher.bot_data['current_day'] = next_day
-
-        # Log when the next question will be sent
-        next_quiz_time = context.job_queue.jobs()[1].next_t.replace(tzinfo=None)  # Get the time for the next quiz
-        logging.info(f"The next question (day {next_day + 1}) will be sent at {next_quiz_time}.")
     else:
         logging.error(f"Day {day + 1} is out of range for questions.")
 
 
 
+
 # Function to notify users about the quiz
 def notify_users_about_quiz(context):
-    for username, chat_id in joined_users.items():  # Используем список пользователей, которые нажали Join Quiz
+    for username, user_data in user_chat_mapping.items():  # Используем user_chat_mapping вместо joined_users
+        chat_id = user_data["chat_id"]
         try:
             context.bot.send_message(
                 chat_id=chat_id,
                 text="The quiz will start in 5 minutes!🔔\n\n"
-                "🔥Get ready!"
+                     "🔥Get ready!"
             )
             logging.info(f"Reminder sent to {username} (Chat ID: {chat_id})")
         except Exception as e:
             logging.error(f"Failed to send reminder to {username}: {e}")
+
 
 
 
@@ -405,47 +414,86 @@ def add_quiz_question(context, quiz_question, chat_id, day):
 # Poll answer handler
 def poll_handler(update, context):
     poll_answer = update.poll_answer
-    user_id = poll_answer.user.id
-    poll_id = poll_answer.poll_id
-    selected_option_id = poll_answer.option_ids[0]
+    user_id = poll_answer.user.id  # Get user_id
+    poll_id = poll_answer.poll_id  # Get poll_id
+    selected_option_id = poll_answer.option_ids[0]  # Get the user's selected answer
 
+    # Retrieve poll data
     poll_data = context.bot_data.get(poll_id, {})
     day = poll_data.get('day', 0)
     question = quiz_questions[day]
     correct_option_id = question.correct_answer_position
     is_correct = (selected_option_id == correct_option_id)
 
-    response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    username = poll_answer.user.username if poll_answer.user.username else "Unknown"
+    # Log poll answer
+    logging.info(f"Poll answer received. User: {user_id}, Poll ID: {poll_id}, Selected Option: {selected_option_id}, Correct: {is_correct}")
 
-    # Add the user to poll_participants if they are not already in it
+    # Initialize poll participants if not already done
     if poll_id not in poll_participants:
         poll_participants[poll_id] = set()
+
+    # Add the user to poll_participants
     poll_participants[poll_id].add(user_id)
+    logging.info(f"User {user_id} added to poll_participants for poll_id {poll_id}. Current participants: {poll_participants[poll_id]}")
 
     # Record the result in the table
-    record_user_response(user_id=user_id, username=username, day=day, response_time=response_time, result=is_correct)
+    response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    username = poll_answer.user.username if poll_answer.user.username else "Unknown"
+    record_user_response(file_path, user_id=user_id, username=username, day=day, response_time=response_time, result=is_correct)
 
-    # Send a message to the user
+    # Notify the user
     if is_correct:
         context.bot.send_message(
             chat_id=user_id,
-            text="🎉Congratulations, your answer is correct!\n\n🏁We will now wait for all participants to complete the game.\n\n✨After that, we will randomly select 20 winners from those who answered correctly.\n\n☘️Good luck!"
+            text="🎉 Congratulations, your answer is correct!\n\n🏁 We will now wait for all participants to complete the game.\n\n✨ After that, we will randomly select 20 winners from those who answered correctly.\n\n☘️ Good luck!"
         )
     else:
         context.bot.send_message(
             chat_id=user_id,
-            text="❌ Oops, that’s the wrong answer!\n\nBut don’t give up!\n\n🤗Try again tomorrow."
+            text="❌ Oops, that’s the wrong answer!\n\nBut don’t give up!\n\n🤗 Try again tomorrow."
         )
 
-# Check if user is authorized
+
 def is_authorized_user(update):
     user = update.effective_user
-    return user.username == SUPERADMIN_USERNAME or user.username in authorized_usernames
+    username = user.username
+
+    logging.info(f"Checking authorization for @{username}")
+
+    if username == SUPERADMIN_USERNAME:
+        logging.info(f"User @{username} is the superadmin. Access granted.")
+        return True
+
+    try:
+        # Читаем CSV
+        with open(csv_file_path, mode="r", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+
+            logging.info(f"Reading {csv_file_path} for @{username}.")
+
+            for row in reader:
+                logging.debug(f"Checking row: {row}")
+                # Проверяем соответствие Telegram Username
+                if row.get("Telegram Username") == username:
+                    logging.info(f"Access granted for user @{username}")
+                    return True
+
+        logging.info(f"User @{username} not found in the list.")
+    except FileNotFoundError:
+        logging.warning(f"⚠️ File {csv_file_path} not found. No user authorization possible.")
+    except Exception as e:
+        logging.error(f"⚠️ Error reading file {csv_file_path}: {e}")
+
+    # Если пользователь не найден
+    logging.warning(f"Access denied for user @{username}")
+    return False
+
+
 
 # Main function
 def main():
-    initialize_excel()
+    global file_path
+    initialize_excel(file_path=file_path)
 
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
     if not TELEGRAM_TOKEN:
@@ -471,14 +519,14 @@ def main():
     # Уведомление за 5 минут до викторины
     job_queue.run_daily(
         notify_users_about_quiz,
-        time=dt_time(13, 55),  # Уведомление в 14:55 по UTC
+        time=dt_time(18, 29),  # Уведомление в 14:55 по UTC
     )
     logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
 
     # Планирование самой викторины
     job_queue.run_daily(
         lambda context: send_daily_quiz(context, dp.bot_data['current_day']),
-        time=dt_time(14, 0)  # Викторина в 15:00 по UTC
+        time=dt_time(18, 3)  # Викторина в 15:00 по UTC
     )
     logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
     updater.start_polling()
