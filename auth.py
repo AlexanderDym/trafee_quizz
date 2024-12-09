@@ -1,6 +1,6 @@
 import logging
 import csv
-from config import csv_file_path, SUPERADMIN_USERNAME 
+from bots.config import csv_file_path, SUPERADMIN_USERNAME 
 
 
 def is_authorized_user(update):

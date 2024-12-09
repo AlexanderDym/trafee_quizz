@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Quiz bot",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "maiin.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "run all",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "table",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "db_api/sql_comands.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "registrator",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bots/registrator.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}

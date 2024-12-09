@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=Path('.') / 'trafee.env')
+load_dotenv(dotenv_path=Path('.') / '.env')
 
 
 QUIZ_TIMEOUT_SECONDS = 30

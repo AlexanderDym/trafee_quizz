@@ -7,12 +7,11 @@ from telegram.ext import CallbackContext
 
 # Модули бота
 from winners import select_winners
-from quiz import quiz_questions
-from excel_api import record_user_response
+from bots.quiz import quiz_questions
 from auth import is_authorized_user
 from shared import poll_participants, user_chat_mapping
 
-from config import SUPERADMIN_USERNAME, file_path
+from bots.config import SUPERADMIN_USERNAME, file_path
 
 
 

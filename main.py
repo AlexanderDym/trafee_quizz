@@ -1,5 +1,5 @@
 import telegram_bot
-import registrator
+import bots.registrator as registrator
 
 telegram_bot.main()
 registrator.main()

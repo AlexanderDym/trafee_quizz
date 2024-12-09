@@ -7,7 +7,7 @@ from telegram.ext import CallbackContext
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-from config import file_path, gifts_file_path
+from bots.config import file_path, gifts_file_path
 from notifications import notify_users_about_next_day
 
 # Load environment variables (если используется)
