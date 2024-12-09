@@ -4,7 +4,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, Float, Boolean, String, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
-
 Base = declarative_base()
 
 class Participant(Base):
