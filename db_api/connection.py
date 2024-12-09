@@ -109,6 +109,31 @@ class Database:
             logger.error(f"Error getting all participants: {str(e)}")
             return []
 
+    def get_first_record_date(self) -> Optional[datetime]:
+        """
+        Get the timestamp of the first record added to the participants table
+        
+        Returns:
+            datetime object of the earliest created_at timestamp if records exist,
+            None if table is empty or on error
+        """
+        try:
+            with self.get_db() as session:
+                # Query the earliest created_at timestamp
+                first_record = session.query(models.Participant.created_at)\
+                    .order_by(models.Participant.created_at.asc())\
+                    .first()
+                
+                # Return the datetime if record exists
+                return first_record[0] if first_record else None
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"Database error getting first record date: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting first record date: {str(e)}")
+            return None
+
     def update_participant(self, participant: models.Participant) -> bool:
         """
         Update a participant's information.
@@ -158,7 +183,6 @@ class Database:
         except Exception as e:
             logger.error(f"Error updating participant {participant.trafee_username}: {str(e)}")
             return False
-        
 
     def get_participant_by_telegram_id(self, telegram_id: str) -> models.Participant|None:
         """
@@ -180,7 +204,7 @@ class Database:
         except Exception as e:
             logging.error(f"Error checking user with Telegram ID {telegram_id}: {str(e)}")
             return None
-    
+
     def register_user_by_trafee_username(self, username: str) -> models.Participant|None:
         """
         Check if user exists in Participant table and if they're registered
@@ -201,6 +225,10 @@ class Database:
         except Exception as e:
             logging.error(f"Error checking user {username}: {str(e)}")
             return None
+
+    def get_gifts_table(self):
+        ...
+
 
     # [Previous methods remain unchanged...]
     @contextmanager
@@ -233,7 +261,6 @@ class Database:
             session.rollback()
             raise
 
-    
 
 class DatabaseError(Exception):
     pass

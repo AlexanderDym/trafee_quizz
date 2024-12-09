@@ -60,5 +60,3 @@ class Participant(Base):
     # Final
     final_prize = Column(String)
 
-
-    

@@ -18,21 +18,16 @@ import sys
 from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
-
-from datetime import datetime
-from pathlib import Path
-from db_api import models
 from db_api.connection import Database
-from dotenv import load_dotenv
 
-# Загрузка переменных из trafee.env
+from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path('.') / '.env')
-database = Database()
-# Получение токена из trafee.env
 TELEGRAM_TOKEN = os.getenv("REGISTRATOR_TOKEN")
 
 if not TELEGRAM_TOKEN:
     raise ValueError("Токен не найден. Убедитесь, что переменная REGISTRATOR_TOKEN задана в файле trafee.env.")
+
+database = Database()
 
 main_bot_link = "https://t.me/trafee_quizzy_bot"  # Ссылка на основного бота
 

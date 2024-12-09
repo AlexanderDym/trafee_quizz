@@ -1,5 +1,7 @@
-import telegram_bot
+import bots.quiz as quiz
 import bots.registrator as registrator
 
-telegram_bot.main()
+
+
+quiz.main()
 registrator.main()
