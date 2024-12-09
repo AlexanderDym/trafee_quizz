@@ -54,33 +54,17 @@ class Participant(Base):
     final_prize = Column(String)
 
 
-class Gift(Base):
-    __tablename__ = "gifts"
+    class Gift(Base):
+        __tablename__ = "gifts"
 
-    id = Column(Integer, primary_key=True, index=True)
-    
-    # Gift information
-    name = Column(String, nullable=False)
-    
-    # Quantities available for each day
-    day_1_quantity = Column(Integer, default=0)
-    day_2_quantity = Column(Integer, default=0)
-    day_3_quantity = Column(Integer, default=0)
-    day_4_quantity = Column(Integer, default=0)
-    day_5_quantity = Column(Integer, default=0)
-    day_6_quantity = Column(Integer, default=0)
-    day_7_quantity = Column(Integer, default=0)
-    remain         = Column(Integer, default=0)
+        id = Column(Integer, primary_key=True, index=True)
+        gift_name = Column(String, nullable=False)  # Название подарка
 
-    def __init__(self, name: str, quantities: list[int]):
-        self.name = name
-        if quantities and len(quantities) == 7:
-            self.day_1_quantity = quantities[0]
-            self.day_2_quantity = quantities[1]
-            self.day_3_quantity = quantities[2]
-            self.day_4_quantity = quantities[3]
-            self.day_5_quantity = quantities[4]
-            self.day_6_quantity = quantities[5]
-            self.day_7_quantity = quantities[6]
-            self.remain = sum(quantities)
-
+        # Количество подарков на каждый день
+        day_1_quantity = Column(Integer, nullable=False, default=0)
+        day_2_quantity = Column(Integer, nullable=False, default=0)
+        day_3_quantity = Column(Integer, nullable=False, default=0)
+        day_4_quantity = Column(Integer, nullable=False, default=0)
+        day_5_quantity = Column(Integer, nullable=False, default=0)
+        day_6_quantity = Column(Integer, nullable=False, default=0)
+        day_7_quantity = Column(Integer, nullable=False, default=0)
