@@ -391,7 +391,7 @@ async def poll_handler(update: Update, context) -> None:
 
        # Record in database
        answer_text = question.answers[selected_option_id]
-       if not database.record_user_response(telegram_id=user_id, day=day, answer=answer_text):
+       if not database.save_participant_response_to_db(telegram_id=user_id, day=day, answer=answer_text):
            logging.error(f"Failed to record response for user {user_id}")
            return
 

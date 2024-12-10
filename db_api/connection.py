@@ -176,13 +176,13 @@ class Database:
                 # List of fields to check for updates
                 fields_to_update = [
                     'name', 'telegram_id', 'telegram_username',
-                    'day_1_time', 'day_1_answer', 'day_1_prize',
-                    'day_2_time', 'day_2_answer', 'day_2_prize',
-                    'day_3_time', 'day_3_answer', 'day_3_prize',
-                    'day_4_time', 'day_4_answer', 'day_4_prize',
-                    'day_5_time', 'day_5_answer', 'day_5_prize',
-                    'day_6_time', 'day_6_answer', 'day_6_prize',
-                    'day_7_time', 'day_7_answer', 'day_7_prize',
+                    'day_1_answer', 'day_1_prize',
+                    'day_2_answer', 'day_2_prize',
+                    'day_3_answer', 'day_3_prize',
+                    'day_4_answer', 'day_4_prize',
+                    'day_5_answer', 'day_5_prize',
+                    'day_6_answer', 'day_6_prize',
+                    'day_7_answer', 'day_7_prize',
                     'final_prize'
                 ]
                 
@@ -202,6 +202,46 @@ class Database:
             logger.error(f"Error updating participant {participant.trafee_username}: {str(e)}")
             return False
 
+    def batch_update_participants(self, participants: list[models.Participant]) -> bool:
+        """
+        Batch update multiple participants in the database.
+        
+        Args:
+            participants (List[Participant]): List of participant objects to update
+            
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            with self.get_db() as session:
+                for participant in participants:
+                    # Get existing participant from database
+                    db_participant = session.query(models.Participant)\
+                        .filter(models.Participant.telegram_id == participant.telegram_id)\
+                        .first()
+                    
+                    if db_participant:
+                        # Update all prize fields
+                        for day in range(1, 8):
+                            prize_field = f'day_{day}_prize'
+                            if hasattr(participant, prize_field):
+                                setattr(db_participant, prize_field, getattr(participant, prize_field))
+                
+                session.commit()
+                logging.info(f"Successfully updated {len(participants)} participants")
+                return True
+                
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in batch update participants: {str(e)}")
+            if 'session' in locals():
+                session.rollback()
+            return False
+        except Exception as e:
+            logging.error(f"Error in batch update participants: {str(e)}")
+            if 'session' in locals():
+                session.rollback()
+            return False
+    
     def get_participant_by_telegram_id(self, telegram_id: str) -> models.Participant|None:
         """
         Check if user exists in Participant table by their Telegram ID
@@ -223,14 +263,14 @@ class Database:
             logging.error(f"Error checking user with Telegram ID {telegram_id}: {str(e)}")
             return None
 
-    def record_user_response(self, telegram_id: str, day: int, answer: str) -> bool:
+    def save_participant_response_to_db(self, telegram_id: str, day: int, answer_is_correct: bool) -> bool:
         """
         Record a user's quiz response in the database
         
         Args:
             telegram_id (str): User's Telegram ID
             day (int): Quiz day number (0-based index)
-            answer (str): User's selected answer
+            answer (bool): User's selected answer
             response_time (datetime): Time when answer was submitted
             is_correct (bool): Whether the answer was correct
             
@@ -239,7 +279,7 @@ class Database:
         """
         try:
             # Validate day input
-            if not 0 <= day <= 6:  # 0-based index for 7 days
+            if not 0 < day <= 7:  # 1-based index for 7 days
                 logger.error(f"Invalid day number: {day}, must be between 0 and 6")
                 return False
                 
@@ -254,9 +294,7 @@ class Database:
                     return False
                     
                 # Update fields for the specific day
-                day_num = day
-                setattr(participant, f'day_{day_num}_time', datetime.now(tz=pytz.UTC))
-                setattr(participant, f'day_{day_num}_answer', answer)
+                setattr(participant, f'day_{day}_answer', answer_is_correct)
                 
                 # Commit the changes
                 session.commit()
@@ -368,16 +406,15 @@ class Database:
             return []
         
 
-    def distribute_gifts_to_participants(self, day: int, participants: list[models.Participant]) -> list[models.Participant]:
+    def get_available_gifts(self, day: int) -> list:
         """
-        Distribute available gifts for a specific day to participants based on available gift quantities
+        Get all available gifts for a specific day that have quantity > 0
         
         Args:
             day (int): Day number (1-7)
-            participants (List[Participant]): List of participants to receive gifts
             
         Returns:
-            List[Participant]: List of updated participants with assigned gifts
+            List[Gift]: List of available gift objects with their quantities
         """
         try:
             with self.get_db() as session:
@@ -386,71 +423,25 @@ class Database:
                     logging.error(f"Invalid day number: {day}, must be between 1 and 7")
                     return []
                 
-                # Get available gifts for the day
+                # Construct the column name for the specific day
                 day_column = f"day_{day}_quantity"
+                
+                # Query gifts where the specified day's quantity is greater than 0
                 available_gifts = session.query(models.Gift)\
                     .filter(getattr(models.Gift, day_column) > 0)\
                     .all()
                 
-                if not available_gifts:
-                    logging.error(f"No gifts available for day {day}")
-                    return []
+                # Log the results
+                logging.info(f"Found {len(available_gifts)} available gifts for day {day}")
                 
-                # Create a pool of gifts based on their quantities
-                gift_pool = []
-                for gift in available_gifts:
-                    quantity = getattr(gift, day_column)
-                    gift_pool.extend([gift.name] * quantity)
-                
-                # Select number of winners based on available gifts
-                num_winners = min(len(gift_pool), len(participants))
-                # Randomly select winners
-                random_participants = random.sample(participants, num_winners)
-                random.shuffle(gift_pool)
-                
-                # Distribute gifts
-                updated_participants = []
-                
-                for participant in random_participants:
-                    if not gift_pool:
-                        break
-                        
-                    # Get a random gift
-                    gift_name = gift_pool.pop()
+                return available_gifts
                     
-                    # Update gift quantity in database
-                    gift = session.query(models.Gift)\
-                        .filter(models.Gift.name == gift_name)\
-                        .first()
-                    
-                    if gift:
-                        # Decrease the quantity for this day
-                        current_quantity = getattr(gift, day_column)
-                        setattr(gift, day_column, current_quantity - 1)
-                        
-                        # Recalculate remain column (sum of all day quantities)
-                        total_remain = sum(
-                            getattr(gift, f"day_{d}_quantity")
-                            for d in range(1, 8)
-                        )
-                        gift.remain = total_remain
-                        
-                        # Update participant's prize for this day
-                        day_prize_column = f"day_{day}_prize"
-                        setattr(participant, day_prize_column, gift_name)
-                        updated_participants.append(participant)
-                
-                # Commit all changes
-                session.commit()
-                
-                logging.info(f"Successfully distributed {len(updated_participants)} gifts for day {day}")
-                return updated_participants
-                
-        except Exception as e:
-            logging.error(f"Error distributing gifts for day {day}: {str(e)}")
-            session.rollback()
+        except SQLAlchemyError as e:
+            logging.error(f"Database error getting available gifts for day {day}: {str(e)}")
             return []
-        
+        except Exception as e:
+            logging.error(f"Error getting available gifts for day {day}: {str(e)}")
+            return []
 
     def is_authorized_user(self, update):
         """

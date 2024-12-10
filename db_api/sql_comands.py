@@ -21,31 +21,24 @@ CREATE TABLE IF NOT EXISTS participants (
     telegram_id VARCHAR,
     telegram_username VARCHAR,
     
-    day_1_time TIMESTAMP WITH TIME ZONE,
-    day_1_answer VARCHAR,
+    day_1_answer BOOLEAN,
     day_1_prize VARCHAR,
     
-    day_2_time TIMESTAMP WITH TIME ZONE,
-    day_2_answer VARCHAR,
+    day_2_answer BOOLEAN,
     day_2_prize VARCHAR,
     
-    day_3_time TIMESTAMP WITH TIME ZONE,
-    day_3_answer VARCHAR,
+    day_3_answer BOOLEAN,
     day_3_prize VARCHAR,
     
-    day_4_time TIMESTAMP WITH TIME ZONE,
-    day_4_answer VARCHAR,
+    day_4_answer BOOLEAN,
     day_4_prize VARCHAR,
     
-    day_5_time TIMESTAMP WITH TIME ZONE,
-    day_5_answer VARCHAR,
+    day_5_answer BOOLEAN,
     day_5_prize VARCHAR,
     
-    day_6_time TIMESTAMP WITH TIME ZONE,
-    day_6_answer VARCHAR,
+    day_6_answer BOOLEAN,
     day_6_prize VARCHAR,
     
-    day_7_time TIMESTAMP WITH TIME ZONE,
     day_7_answer VARCHAR,
     day_7_prize VARCHAR,
     
@@ -55,7 +48,7 @@ CREATE TABLE IF NOT EXISTS participants (
 CREATE INDEX IF NOT EXISTS idx_trafee_username ON participants(trafee_username);
 """
 
-CREATE_GIFTS_TABLE_SQL = """
+CREATE_GIFT_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS gifts (
     id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL UNIQUE,
@@ -344,23 +337,23 @@ if __name__ == "__main__":
         # Choose one of these operations:
         # clear_table(conn)  # Just delete all records
         # reset_table(conn)  # Drop and recreate table
-        # fill_participants_from_json('participants.json',conn)  # Drop and recreate table
+        fill_participants_from_json('participants.json',conn)  # Drop and recreate table
 
 
         # reset_gift_table()
 
-        gifts = [
-            Gift("Amazon Gift Card or Yandex Gift Card", quantities=[2, 2, 2, 2, 2, 2, 2]),
-            Gift("Google Gift Card", quantities=[3, 3, 3, 3, 3, 3, 3]),
-            Gift("Netflix 1 month or Amediateka Subscription 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
-            Gift("YouTube Premium for 3 month or Yandex plus", quantities=[2, 2, 2, 2, 2, 2, 2]),
-            Gift("Telegram Subscription for 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
-            Gift("Telegram Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Spotify Premium 3 month/ yandex музыка", quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("VPN Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Trafee Bonus", quantities=[6, 6, 6, 6, 6, 6, 6])
-        ]
-        fill_gifts_from_list(gifts)
+        # gifts = [
+        #     Gift("Amazon Gift Card or Yandex Gift Card", quantities=[2, 2, 2, 2, 2, 2, 2]),
+        #     Gift("Google Gift Card", quantities=[3, 3, 3, 3, 3, 3, 3]),
+        #     Gift("Netflix 1 month or Amediateka Subscription 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
+        #     Gift("YouTube Premium for 3 month or Yandex plus", quantities=[2, 2, 2, 2, 2, 2, 2]),
+        #     Gift("Telegram Subscription for 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
+        #     Gift("Telegram Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
+        #     Gift("Spotify Premium 3 month/ yandex музыка", quantities=[1, 1, 1, 1, 1, 1, 1]),
+        #     Gift("VPN Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
+        #     Gift("Trafee Bonus", quantities=[6, 6, 6, 6, 6, 6, 6])
+        # ]
+        # fill_gifts_from_list(gifts)
         
     except Exception as e:
         print(f"Operation failed: {e}")

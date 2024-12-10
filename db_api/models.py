@@ -23,38 +23,31 @@ class Participant(Base):
     telegram_username = Column(String)
     
     # Day 1
-    day_1_time = Column(DateTime(timezone=True))
-    day_1_answer = Column(String)
+    day_1_answer = Column(Boolean)
     day_1_prize = Column(String)
     
     # Day 2
-    day_2_time = Column(DateTime(timezone=True))
-    day_2_answer = Column(String)
+    day_2_answer = Column(Boolean)
     day_2_prize = Column(String)
     
     # Day 3
-    day_3_time = Column(DateTime(timezone=True))
-    day_3_answer = Column(String)
+    day_3_answer = Column(Boolean)
     day_3_prize = Column(String)
     
     # Day 4
-    day_4_time = Column(DateTime(timezone=True))
-    day_4_answer = Column(String)
+    day_4_answer = Column(Boolean)
     day_4_prize = Column(String)
     
     # Day 5
-    day_5_time = Column(DateTime(timezone=True))
-    day_5_answer = Column(String)
+    day_5_answer = Column(Boolean)
     day_5_prize = Column(String)
     
     # Day 6
-    day_6_time = Column(DateTime(timezone=True))
-    day_6_answer = Column(String)
+    day_6_answer = Column(Boolean)
     day_6_prize = Column(String)
     
     # Day 7
-    day_7_time = Column(DateTime(timezone=True))
-    day_7_answer = Column(String)
+    day_7_answer = Column(Boolean)
     day_7_prize = Column(String)
     
     # Final
