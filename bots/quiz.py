@@ -10,7 +10,7 @@ from telegram.ext import (
 )
 from datetime import datetime, time, timedelta, timezone
 import random
-# import time
+from time import sleep
 
 import sys
 from pathlib import Path
@@ -138,6 +138,7 @@ def process_answers(context):
     Process all answers after quiz timeout, select winners, and distribute gifts
     """
     global CURRNET_DAY
+    sleep(15)
     try:
         recorded_users = database.get_registered_participants()
 
@@ -236,7 +237,7 @@ def select_winners(availble_gifts:list) -> list[models.Participant]:
         day_field = f'day_{CURRNET_DAY}_answer'
         participant_answer = getattr(participant, day_field, None)
         
-        if participant_answer == True:
+        if isinstance(participant_answer, bool) and participant_answer == True:
             correct_users.append(participant)
 
     if not correct_users:
@@ -293,12 +294,6 @@ def send_daily_quiz(context) -> None:
                     day=CURRNET_DAY
                 )
 
-                # context.job_queue.run_once(
-                #     handle_poll_timeout_for_user,
-                #     when=QUIZ_TIMEOUT_SECONDS,
-                #     context={'poll_id': poll_message.poll.id, 'day': CURRNET_DAY}
-                # )
-                
             except Exception as e:
                 logging.error(f"Failed to send quiz to {participant.trafee_username}: {str(e)}")
 

@@ -268,7 +268,7 @@ class Database:
                     for attr in [
                         'name', 'day_1_quantity', 'day_2_quantity', 
                         'day_3_quantity', 'day_4_quantity', 'day_5_quantity', 
-                        'day_6_quantity', 'day_7_quantity'
+                        'day_6_quantity', 'day_7_quantity', 'remain'
                     ]:
                         if hasattr(updated_gift, attr):
                             setattr(db_gift, attr, getattr(updated_gift, attr))

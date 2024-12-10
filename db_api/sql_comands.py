@@ -139,7 +139,7 @@ def reset_table(conn: Optional[connection] = None) -> bool:
         cur.execute(DROP_TABLE_SQL)
         cur.execute(CREATE_TABLE_SQL)
         conn.commit()
-        print("Successfully reset reservations table")
+        print("Successfully reset participants table")
         return True
         
     except Exception as e:
@@ -154,7 +154,7 @@ def reset_table(conn: Optional[connection] = None) -> bool:
 
 
 def reset_gift_table(conn: Optional[connection] = None) -> bool:
-    """Drop and recreate the reservations table"""
+    """Drop and recreate the gifts table"""
     should_close_conn = conn is None
     try:
         if conn is None:
@@ -164,7 +164,7 @@ def reset_gift_table(conn: Optional[connection] = None) -> bool:
         cur.execute(DROP_GIFT_TABLE_SQL)
         cur.execute(CREATE_GIFT_TABLE_SQL)
         conn.commit()
-        print("Successfully reset reservations table")
+        print("Successfully reset gifts table")
         return True
         
     except Exception as e:
