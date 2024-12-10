@@ -68,7 +68,6 @@ class Gift(Base):
     
     # Gift information
     name = Column(String, nullable=False)
-    description = Column(String)
     
     # Quantities available for each day
     day_1_quantity = Column(Integer, default=0)

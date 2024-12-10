@@ -2,34 +2,39 @@ import logging
 import os
 from dotenv import load_dotenv
 from telegram import Poll, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, PollAnswerHandler
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    CallbackQueryHandler,
+    PollAnswerHandler
+)
 from datetime import datetime, timezone
 from datetime import datetime, time as dt_time
 import random
+import time
 
 import sys
 from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 from db_api.connection import Database
-from bots.config import file_path, SUPERADMIN_USERNAME  
+from bots.config import file_path, SUPERADMIN_USERNAME
 
 load_dotenv()
 
 FIRST_DATETIME = None
 CURRNET_DAY = 1
-# Timer for quiz
 QUIZ_TIMEOUT_SECONDS = 30
 SUPERADMIN_USERNAME = "Alexander_Dym"
 
-database : Database = Database()
+database: Database = Database()
 
 
 # Class for quiz questions
 class QuizQuestion:
-    def __init__(self, question="", answers=None, correct_answer=""):
+    def __init__(self, question, answers, correct_answer):
         self.question = question
-        self.answers = answers if answers is not None else []
+        self.answers = answers
         self.correct_answer = correct_answer
         self.correct_answer_position = self.__get_correct_answer_position__()
 
@@ -51,146 +56,62 @@ quiz_questions = [
 ]
 
 
-# Command for superadmin to get the results file
-def list_handler(update, context):
-    user = update.message.from_user
-
-    if user.username == SUPERADMIN_USERNAME:
-        try:
-            with open(file_path, 'rb') as file:
-                context.bot.send_document(chat_id=update.effective_chat.id, document=file, filename="quiz_results.xlsx")
-                update.message.reply_text("👉Here are the current quiz results👈")
-        except Exception as e:
-            update.message.reply_text(f"Failed to send the file: {str(e)}")
-    else:
-        update.message.reply_text("⛔ You don't have access to this command.")
-
-# Command to start the quiz for the user
-def start_command_handler(update, context):
-    user = update.effective_user
-    chat_id = update.effective_chat.id
-    username = user.username if user.username else "Unknown"
-
-    # Проверка авторизации
-    if not database.is_authorized_user(update):
-        logging.warning(f"Unauthorized user @{username} tried to access the bot.")
-        context.bot.send_message(chat_id=chat_id, text="⛔ You are not authorized to use this bot.")
-        return
-
-# TODO
-    # # Check if the user has already started the bot
-    # if username in user_chat_mapping:
-    #     logging.warning(f"{datetime.now()} - User @{username} tried to press /start again.")
-    #     context.bot.send_message(
-    #         chat_id=chat_id,
-    #         text="You're already in the quiz 👻\n\nThe next question will be tomorrow!\n\nDon't be sneaky 😜."
-    #     )
-    #     return
-
-    # # If the user is new, add them to the dictionary
-    # user_chat_mapping[username] = {"chat_id": chat_id, "joined": False}
-
-    # Send the welcome message
-    image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz.png"
-    welcome_text = (
-        "*🎄✨ Welcome to the ultimate holiday quiz challenge! 🎅🎁*\n\n"
-        "🔥 From *December 17 to 23*, we'll light up your festive spirit with daily quizzes\n\n"
-        "🎯 Answer questions, compete with others, and *grab amazing prizes every day!*\n\n"
-        "*🎁 And the grand finale?*\nA special gift waiting for the ultimate champion on Christmas Eve 🎉\n\n"
-    )
-    context.bot.send_photo(chat_id=chat_id, photo=image_url, caption=welcome_text, parse_mode="Markdown")
-
-    keyboard = [[InlineKeyboardButton("🚀 Join the Quiz", callback_data="participate")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    context.bot.send_message(chat_id=chat_id, text="Click 'Join the Quiz' to get started.\n\nLet the fun begin! 🎉", reply_markup=reply_markup)
-
-
 def handle_poll_timeout(context):
     poll_id = context.job.context['poll_id']
     day = context.job.context['day']
-
-    # Загружаем Excel и проверяем, кто уже записан
-
-    # Создаём множество с ID пользователей, записанных в Excel
+    # TODO: get all at once
     recorded_users = database.get_registered_participants()
 
     for user in recorded_users:
         chat_id = user.telegram_id
 
         if database.get_participant_answer(telegram_id=str(chat_id), day=CURRNET_DAY):
-            # Пользователь уже ответил, пропускаем
             logging.info(f"User {user.telegram_id} has already answered the question. Timeout skipped.")
             continue
 
-        # Если пользователь не ответил, уведомляем и записываем результат
         try:
             context.bot.send_message(chat_id=chat_id, text="⏰ Time's up!\n\nYour response was not counted 🥵.")
         except Exception as e:
             logging.error(f"Failed to notify user {user.telegram_username} (Chat ID: {chat_id}): {e}")
 
-    # Переходим к выбору победителей
     select_winners(context, day)
 
-
-
 def notify_users_about_next_day(context):
-   """
-   Notify registered participants about the next day's quiz
-   """
-   try:
-       # Get current day from context and calculate next day
-       day = context.job.context.get('day', 0)
-       next_day = (day + 1) if (day + 1) <= 7 else 1
-       
-       participants = database.get_registered_participants()
-       
-       if not participants:
-           logging.warning("No registered participants found to notify about next day")
-           return
-           
-       for participant in participants:
-           try:
-               context.bot.send_message(
-                   chat_id=participant.telegram_id,
-                   text=f"🎄 Reminder! Tomorrow is Day {next_day} of our 7-day holiday giveaway! 🎁✨\n\n"
-                        "Don't miss your chance to win more amazing prizes.\n\n"
-                        "🕒 The fun starts at 15:00 UTC sharp, and we'll send you a reminder 3 minutes before "
-                        "to make sure you're ready to shine! 🌟 See you there!"
-               )
-               logging.info(f"Next day reminder sent to {participant.telegram_username} "
-                          f"(Telegram ID: {participant.telegram_id})")
-                          
-           except Exception as e:
-               logging.error(f"Failed to send next day reminder to {participant.telegram_username}: {e}")
-               
-   except Exception as e:
-       logging.error(f"Error getting registered participants for next day notifications: {e}")
-
-
-    
+    try:
+        day = context.job.context.get('day', 0)
+        next_day = (day + 1) if (day + 1) <= 7 else 1
+        
+        participants = database.get_registered_participants()
+        
+        if not participants:
+            logging.warning("No registered participants found to notify about next day")
+            return
+            
+        for participant in participants:
+            try:
+                context.bot.send_message(
+                    chat_id=participant.telegram_id,
+                    text=f"🎄 Reminder! Tomorrow is Day {next_day} of our 7-day holiday giveaway! 🎁✨\n\n"
+                         "Don't miss your chance to win more amazing prizes.\n\n"
+                         "🕒 The fun starts at 15:00 UTC sharp!"
+                )
+            except Exception as e:
+                logging.error(f"Failed to send next day reminder to {participant.telegram_username}: {e}")
+                
+    except Exception as e:
+        logging.error(f"Error in notify_users_about_next_day: {str(e)}")
 
 def select_winners(context, day):
-    """
-    Select winners from participants who answered correctly for the given day
-    
-    Args:
-        context: Bot context
-        day: Current quiz day (0-based index)
-    """
     participants = database.get_registered_participants()
     
-    # Get correct answer for this day from quiz_questions
     question = quiz_questions[day]
     correct_answer = question.correct_answer
     
-    # Filter participants who answered correctly
     correct_users = []
     for participant in participants:
-        # Get the answer for the specific day using dynamic field access
-        day_field = f'day_{day + 1}_answer'
+        day_field = f'day_{day}_answer'
         participant_answer = getattr(participant, day_field, None)
         
-        # Compare participant's answer with correct answer (case-insensitive)
         if participant_answer and participant_answer.strip().lower() == correct_answer.strip().lower():
             correct_users.append((
                 participant.telegram_id,
@@ -201,56 +122,20 @@ def select_winners(context, day):
         logging.info(f"No correct answers for Day {day + 1}. No winners selected.")
         return
         
-    # Select up to 5 random winners
     winners = random.sample(correct_users, min(5, len(correct_users)))
     
-    # Distribute gifts to winners
     try:
-        database.distribute_gifts_to_participants(day + 1, winners)
-        logging.info(f"Gifts distributed to {len(winners)} winners for Day {day + 1}")
+        database.distribute_gifts_to_participants(day, winners)
+        logging.info(f"Gifts distributed to {len(winners)} winners for Day {day}")
     except Exception as e:
-        logging.error(f"Error distributing gifts for Day {day + 1}: {str(e)}")
+        logging.error(f"Error distributing gifts for Day {day}: {str(e)}")
 
-    # Schedule next day reminder
     context.job_queue.run_once(
         notify_users_about_next_day,
         when=5,
-        context={'day': day + 1}
+        context={'day': day}
     )
-    logging.info(f"Reminder for next day scheduled in 5 seconds.")
 
-
-
-# Callback for participating in quiz
-def participate_handler(update, context):
-    query = update.callback_query
-    query.answer()
-
-    user = query.from_user
-    username = user.username if user.username else "Unknown"
-
-    # Проверка авторизации
-    if not database.is_authorized_user(update):
-        logging.warning(f"Unauthorized user @{username} tried to join the quiz.")
-        query.edit_message_text(text="⛔ You are not authorized to join this quiz.")
-        return
-
-    # Проверка: если пользователь уже нажимал Join Quiz
-    # if user_chat_mapping.get(username, {}).get("joined"):
-    #     logging.info(f"User @{username} tried to join the quiz again.")
-    #     query.edit_message_text(text="You are already in the quiz! 🚀")
-    #     return
-
-    # Отметить пользователя как присоединившегося
-    # user_chat_mapping[username] = {
-    #     "chat_id": query.message.chat_id,
-    #     "joined": True
-    # }
-    # logging.info(f"User @{username} joined the quiz for the first time.")
-    query.edit_message_text(text="Welcome to the quiz! 🎉")
-
-
-# Function to send quiz question to user
 def add_quiz_question(context, quiz_question, chat_id, day):
     message = context.bot.send_poll(
         chat_id=chat_id,
@@ -263,73 +148,55 @@ def add_quiz_question(context, quiz_question, chat_id, day):
         explanation="Don't be sad"
     )
     
-    # Сохраняем данные опроса
-    context.bot_data.update({message.poll.id: {'chat_id': message.chat.id, 'day': day}})
+    context.bot_data[message.poll.id] = {'chat_id': message.chat.id, 'day': day}
     
-    # Планируем таймаут
     context.job_queue.run_once(
         handle_poll_timeout,
         when=QUIZ_TIMEOUT_SECONDS,
         context={'poll_id': message.poll.id, 'day': day}
     )
 
-
-def send_daily_quiz(context, day: int) -> None:
+def send_daily_quiz(context) -> None:
     global CURRNET_DAY
-    """
-    Send daily quiz questions to all registered participants
-    
-    Args:
-        context: Telegram bot context
-        day (int): Current quiz day (0-based index)
-    """
-    logging.info(f"Preparing to send quiz for day {day}")
+    logging.info(f"Preparing to send quiz for day {CURRNET_DAY}")
     
     try:
-        # Validate day and questions
-        if day >= len(quiz_questions):
-            logging.error(f"Day {day} is out of range for questions")
+        if CURRNET_DAY-1 >= len(quiz_questions):
+            logging.error(f"Day {CURRNET_DAY} is out of range for questions")
             return
             
-        # Get participants from database
         participants = database.get_registered_participants()
         if not participants:
             logging.warning("⚠️ No participants registered for the quiz. Skipping.")
             return
             
-        # Get current day's question
-        question = quiz_questions[day]
+        question = quiz_questions[CURRNET_DAY-1]
         
-        # Send question to each participant
         for participant in participants:
             if not participant.telegram_id:
                 logging.warning(f"No telegram_id for participant {participant.trafee_username}. Skipping.")
                 continue
                 
             try:
-                # Send intro message
                 context.bot.send_message(
                     chat_id=participant.telegram_id,
                     text="⚡ Today's quiz question:"
                 )
                 
-                # Send actual question (assuming this function exists)
-                add_quiz_question(context=context,quiz_question=question,chat_id=participant.telegram_id,day=day)
+                add_quiz_question(
+                    context=context,
+                    quiz_question=question,
+                    chat_id=participant.telegram_id,
+                    day=CURRNET_DAY
+                )
                 
-                logging.info(f"Quiz sent to participant {participant.trafee_username} "
-                           f"(Telegram ID: {participant.telegram_id})")
-                           
             except Exception as e:
                 logging.error(f"Failed to send quiz to {participant.trafee_username}: {str(e)}")
         
-        # Update current day
         CURRNET_DAY += 1
         
     except Exception as e:
         logging.error(f"Error in send_daily_quiz: {str(e)}")
-
-
-
 
 def notify_users_about_quiz(context):
     """
@@ -358,98 +225,159 @@ def notify_users_about_quiz(context):
     except Exception as e:
         logging.error(f"Error getting registered participants for notifications: {e}")
 
+def poll_handler(update: Update, context) -> None:
+    """Handle quiz poll answers from users"""
+    try:
+        answer = update.poll_answer
+        if not answer or not answer.option_ids:
+            logging.error("Invalid poll answer update")
+            return
+            
+        user_id = str(answer.user.id)
+        poll_id = answer.poll_id
+        selected_option_id = answer.option_ids[0]
 
+        poll_data = context.bot_data.get(poll_id, {})
+        day = poll_data.get('day', 0)
+        if day-1 >= len(quiz_questions):
+            logging.error(f"Invalid day {day} for poll {poll_id}")
+            return
+            
+        question = quiz_questions[day-1]
+        is_correct = (selected_option_id == question.correct_answer_position)
 
-# Poll answer handler
-async def poll_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-   """Handle quiz poll answers from users"""
-   try:
-       # Get answer info from update
-       answer = update.poll_answer
-       if not answer or not answer.option_ids:
-           logging.error("Invalid poll answer update")
-           return
-           
-       user_id = str(answer.user.id)
-       poll_id = answer.poll_id
-       selected_option_id = answer.option_ids[0]
+        answer_text = question.answers[selected_option_id]
+        save_response_res = database.record_user_response(telegram_id=user_id, day=day, answer=answer_text)
+        if not save_response_res:
+            logging.error(f"Failed to record response for user {user_id}")
+            return
 
-       # Get poll data and validate
-       poll_data = context.bot_data.get(poll_id, {})
-       day = poll_data.get('day', 0)
-       if day >= len(quiz_questions):
-           logging.error(f"Invalid day {day} for poll {poll_id}")
-           return
-           
-       # Check if answer is correct
-       question = quiz_questions[day]
-       is_correct = (selected_option_id == question.correct_answer_position)
+        message = (
+            "🎉 Congratulations, your answer is correct!\n\n"
+            "🏁 We will now wait for all participants to complete the game.\n\n"
+            "✨ After that, we will randomly select 20 winners from those who answered correctly.\n\n"
+            "☘️ Good luck!"
+        ) if is_correct else (
+            "❌ Oops, that's the wrong answer!\n\nBut don't give up!\n\n🤗 Try again tomorrow."
+        )
+        
+        context.bot.send_message(chat_id=user_id, text=message)
+        
+    except Exception as e:
+        logging.error(f"Error in poll_handler: {str(e)}")
 
-       # Log the response
-       logging.info(f"Poll answer received. User: {user_id}, Poll ID: {poll_id}, "
-                   f"Selected Option: {selected_option_id}, Correct: {is_correct}")
+def start_command_handler(update, context):
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    username = user.username if user.username else "Unknown"
 
-       # Record in database
-       answer_text = question.answers[selected_option_id]
-       if not database.record_user_response(telegram_id=user_id, day=day, answer=answer_text):
-           logging.error(f"Failed to record response for user {user_id}")
-           return
+    # Проверка авторизации
+    if not database.is_authorized_user(update):
+        logging.warning(f"Unauthorized user @{username} tried to access the bot.")
+        context.bot.send_message(chat_id=chat_id, text="⛔ You are not authorized to use this bot.")
+        return
+    
+def list_handler(update, context):
+    user = update.message.from_user
 
-       # Send feedback message
-       message = (
-           "🎉 Congratulations, your answer is correct!\n\n"
-           "🏁 We will now wait for all participants to complete the game.\n\n"
-           "✨ After that, we will randomly select 20 winners from those who answered correctly.\n\n"
-           "☘️ Good luck!"
-       ) if is_correct else (
-           "❌ Oops, that's the wrong answer!\n\nBut don't give up!\n\n🤗 Try again tomorrow."
-       )
-       
-       await context.bot.send_message(chat_id=user_id, text=message)
-       
-   except Exception as e:
-       logging.error(f"Error in poll_handler: {str(e)}")
+    if user.username == SUPERADMIN_USERNAME:
+        try:
+            with open(file_path, 'rb') as file:
+                context.bot.send_document(chat_id=update.effective_chat.id, document=file, filename="quiz_results.xlsx")
+                update.message.reply_text("👉Here are the current quiz results👈")
+        except Exception as e:
+            update.message.reply_text(f"Failed to send the file: {str(e)}")
+    else:
+        update.message.reply_text("⛔ You don't have access to this command.")
 
+def participate_handler(update, context):
+    query = update.callback_query
+    query.answer()
 
+    user = query.from_user
+    username = user.username if user.username else "Unknown"
 
+    # Проверка авторизации
+    if not database.is_authorized_user(update):
+        logging.warning(f"Unauthorized user @{username} tried to join the quiz.")
+        query.edit_message_text(text="⛔ You are not authorized to join this quiz.")
+        return
 
+    # Проверка: если пользователь уже нажимал Join Quiz
+    # if user_chat_mapping.get(username, {}).get("joined"):
+    #     logging.info(f"User @{username} tried to join the quiz again.")
+    #     query.edit_message_text(text="You are already in the quiz! 🚀")
+    #     return
 
-# Main function
+    # Отметить пользователя как присоединившегося
+    # user_chat_mapping[username] = {
+    #     "chat_id": query.message.chat_id,
+    #     "joined": True
+    # }
+    # logging.info(f"User @{username} joined the quiz for the first time.")
+    query.edit_message_text(text="Welcome to the quiz! 🎉")
+
 def main():
     TELEGRAM_TOKEN = os.getenv("QUIZ_TOKEN")
     if not TELEGRAM_TOKEN:
         logging.error("TELEGRAM_TOKEN is not set. Exiting.")
         return
 
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    # # Configure request parameters
+    # request_kwargs = {
+    #     'connect_timeout': 30.0,    # Increased connection timeout
+    #     'read_timeout': 30.0,       # Increased read timeout
+    # }
 
-    dp.add_handler(CommandHandler("start", start_command_handler))
-    dp.add_handler(CommandHandler("list", list_handler))
-    dp.add_handler(CallbackQueryHandler(participate_handler, pattern="participate"))
-    dp.add_handler(PollAnswerHandler(poll_handler))
+    try:
+        # Initialize with request parameters
+        updater = Updater(
+            token=TELEGRAM_TOKEN,
+            use_context=True,
+            # request_kwargs=request_kwargs
+        )
+        
+        dp = updater.dispatcher
 
-    # Логирование времени сервера
-    logging.info(f"Current server UTC time: {datetime.now(timezone.utc)}")
+        # Add handlers
+        dp.add_handler(CommandHandler("start", start_command_handler))
+        dp.add_handler(CommandHandler("list", list_handler))
+        dp.add_handler(CallbackQueryHandler(participate_handler, pattern="participate"))
+        dp.add_handler(PollAnswerHandler(poll_handler))
 
-    # Планирование задач
-    job_queue = updater.job_queue
-    # Уведомление за 5 минут до викторины
-    job_queue.run_daily(
-        notify_users_about_quiz,
-        time=dt_time(0, 11),  # Уведомление в 14:55 по UTC
-    )
-    logging.info("JobQueue task for quiz notifications added at 14:55 UTC.")
+        # Log server time
+        logging.info(f"Current server UTC time: {datetime.now(timezone.utc)}")
 
-    # Планирование самой викторины
-    job_queue.run_daily(
-        lambda context: send_daily_quiz(context, CURRNET_DAY),
-        time=dt_time(0, 12)  # Викторина в 15:00 по UTC
-    )
-    logging.info("JobQueue task for quiz scheduling added at 15:00 UTC.")
-    updater.start_polling()
-    logging.info("Bot started in polling mode")
+        # Schedule jobs
+        job_queue_notifications = updater.job_queue
+
+        job_queue_notifications.run_daily(
+            notify_users_about_quiz,
+            time=dt_time(10, 35),  # 14:55 UTC
+        )
+
+        job_queue_quiz = updater.job_queue
+        job_queue_quiz.run_daily(
+            send_daily_quiz,
+            time=dt_time(10, 38)  # 15:00 UTC
+        )
+
+        # Start the bot with error handling
+        logging.info("Starting bot...")
+        updater.start_polling()
+        
+        logging.info("Bot started successfully!")
+        updater.idle()
+
+    except Exception as e:
+        logging.error(f"Error starting bot: {str(e)}")
+        # Wait before trying to reconnect
+        time.sleep(5)
+        main()  # Restart the bot
 
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 main()

@@ -254,7 +254,7 @@ class Database:
                     return False
                     
                 # Update fields for the specific day
-                day_num = day + 1  # Convert to 1-based for column names
+                day_num = day
                 setattr(participant, f'day_{day_num}_time', datetime.now(tz=pytz.UTC))
                 setattr(participant, f'day_{day_num}_answer', answer)
                 
