@@ -378,6 +378,10 @@ def notify_users_about_quiz(context):
     Send quiz reminder notification to all registered participants
     """
     try:
+
+        if CURRNET_DAY >= 8:  # !!!!!
+            sys.exit()
+
         participants = database.get_registered_participants()
         
         if not participants:
