@@ -6,6 +6,12 @@ import psycopg2.extras
 import json
 from dotenv import load_dotenv
 
+import sys
+from pathlib import Path
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
+from db_api.models import Gift
+
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS participants (
     id SERIAL PRIMARY KEY,
@@ -49,8 +55,28 @@ CREATE TABLE IF NOT EXISTS participants (
 CREATE INDEX IF NOT EXISTS idx_trafee_username ON participants(trafee_username);
 """
 
+CREATE_GIFTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS gifts (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR NOT NULL UNIQUE,
+    day_1_quantity INTEGER DEFAULT 0,
+    day_2_quantity INTEGER DEFAULT 0,
+    day_3_quantity INTEGER DEFAULT 0,
+    day_4_quantity INTEGER DEFAULT 0,
+    day_5_quantity INTEGER DEFAULT 0,
+    day_6_quantity INTEGER DEFAULT 0,
+    day_7_quantity INTEGER DEFAULT 0,
+    remain INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_gift_name ON gifts(name);
+"""
+
 TRUNCATE_TABLE_SQL = "TRUNCATE TABLE participants RESTART IDENTITY;"
 DROP_TABLE_SQL = "DROP TABLE IF EXISTS participants;"
+
+TRUNCATE_GIFT_TABLE_SQL = "TRUNCATE TABLE gifts RESTART IDENTITY;"
+DROP_GIFT_TABLE_SQL = "DROP TABLE IF EXISTS gifts;"
 
 load_dotenv()
 
@@ -111,7 +137,32 @@ def reset_table(conn: Optional[connection] = None) -> bool:
             conn.close()
 
 
-def fill_table_from_json(json_file_path: str, conn: Optional[connection] = None) -> bool:
+def reset_gift_table(conn: Optional[connection] = None) -> bool:
+    """Drop and recreate the reservations table"""
+    should_close_conn = conn is None
+    try:
+        if conn is None:
+            conn = get_db_connection()
+            
+        cur = conn.cursor()
+        cur.execute(DROP_GIFT_TABLE_SQL)
+        cur.execute(CREATE_GIFT_TABLE_SQL)
+        conn.commit()
+        print("Successfully reset reservations table")
+        return True
+        
+    except Exception as e:
+        print(f"Error resetting table: {e}")
+        if conn:
+            conn.rollback()
+        return False
+        
+    finally:
+        if should_close_conn and conn:
+            conn.close()
+
+
+def fill_participants_from_json(json_file_path: str, conn: Optional[connection] = None) -> bool:
     """
     Fill the participants table with data from a JSON file containing trafee usernames.
     
@@ -202,6 +253,89 @@ def fill_table_from_json(json_file_path: str, conn: Optional[connection] = None)
         if should_close_conn and conn:
             conn.close()
 
+
+
+def fill_gifts_from_list(gifts_list: list[Gift], conn: Optional[connection] = None) -> bool:
+    """
+    Fill the gifts table with data from a list of Gift objects.
+    
+    Args:
+        gifts_list (List[Gift]): List of Gift objects containing gift information
+        conn (Optional[connection]): Database connection object. If None, creates new connection
+        
+    Returns:
+        bool: True if operation was successful, False otherwise
+    """
+    should_close_conn = conn is None
+    try:
+        # Create connection if not provided
+        if conn is None:
+            conn = get_db_connection()
+            
+        if not gifts_list:
+            print("Warning: Empty gifts list")
+            return True
+            
+        # Prepare data for insertion
+        insert_data = []
+        
+        for gift in gifts_list:
+            if not gift.name:
+                print("Warning: Skipping gift with empty name")
+                continue
+                
+            insert_data.append({
+                'name': gift.name,
+                'day_1_quantity': gift.day_1_quantity,
+                'day_2_quantity': gift.day_2_quantity,
+                'day_3_quantity': gift.day_3_quantity,
+                'day_4_quantity': gift.day_4_quantity,
+                'day_5_quantity': gift.day_5_quantity,
+                'day_6_quantity': gift.day_6_quantity,
+                'day_7_quantity': gift.day_7_quantity,
+                'remain' : gift.remain,
+            })
+        
+        if not insert_data:
+            print("No valid gifts to insert")
+            return True
+            
+        # Perform bulk insert
+        cur = conn.cursor()
+        psycopg2.extras.execute_values(
+            cur,
+            """
+            INSERT INTO gifts (
+                name,
+                day_1_quantity, day_2_quantity, day_3_quantity,
+                day_4_quantity, day_5_quantity, day_6_quantity,
+                day_7_quantity, remain
+            )
+            VALUES %s
+            """,
+            [(
+                d['name'],
+                d['day_1_quantity'], d['day_2_quantity'], d['day_3_quantity'],
+                d['day_4_quantity'], d['day_5_quantity'], d['day_6_quantity'],
+                d['day_7_quantity'], d['remain']
+            ) for d in insert_data]
+        )
+
+        conn.commit()
+        print(f"Successfully inserted/updated {len(insert_data)} gifts")
+        return True
+        
+    except Exception as e:
+        print(f"Error filling gifts table: {e}")
+        if conn:
+            conn.rollback()
+        return False
+        
+    finally:
+        if should_close_conn and conn:
+            conn.close()
+
+
 if __name__ == "__main__":
     # Example usage
     try:
@@ -210,7 +344,23 @@ if __name__ == "__main__":
         # Choose one of these operations:
         # clear_table(conn)  # Just delete all records
         # reset_table(conn)  # Drop and recreate table
-        fill_table_from_json('participants.json',conn)  # Drop and recreate table
+        # fill_participants_from_json('participants.json',conn)  # Drop and recreate table
+
+
+        # reset_gift_table()
+
+        gifts = [
+            Gift("Amazon Gift Card or Yandex Gift Card", quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("Google Gift Card", quantities=[3, 3, 3, 3, 3, 3, 3]),
+            Gift("Netflix 1 month or Amediateka Subscription 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("YouTube Premium for 3 month or Yandex plus", quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("Telegram Subscription for 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("Telegram Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Spotify Premium 3 month/ yandex музыка", quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("VPN Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Trafee Bonus", quantities=[6, 6, 6, 6, 6, 6, 6])
+        ]
+        fill_gifts_from_list(gifts)
         
     except Exception as e:
         print(f"Operation failed: {e}")

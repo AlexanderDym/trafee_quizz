@@ -96,43 +96,43 @@ def participate_handler(update, context):
     query.edit_message_text(text="Welcome to the quiz! 🎉")
 
 
-def poll_handler(update, context):
-    poll_answer = update.poll_answer
-    user_id = poll_answer.user.id  # Get user_id
-    poll_id = poll_answer.poll_id  # Get poll_id
-    selected_option_id = poll_answer.option_ids[0]  # Get the user's selected answer
+# def poll_handler(update, context):
+#     poll_answer = update.poll_answer
+#     user_id = poll_answer.user.id  # Get user_id
+#     poll_id = poll_answer.poll_id  # Get poll_id
+#     selected_option_id = poll_answer.option_ids[0]  # Get the user's selected answer
 
-    # Retrieve poll data
-    poll_data = context.bot_data.get(poll_id, {})
-    day = poll_data.get('day', 0)
-    question = quiz_questions[day]
-    correct_option_id = question.correct_answer_position
-    is_correct = (selected_option_id == correct_option_id)
+#     # Retrieve poll data
+#     poll_data = context.bot_data.get(poll_id, {})
+#     day = poll_data.get('day', 0)
+#     question = quiz_questions[day]
+#     correct_option_id = question.correct_answer_position
+#     is_correct = (selected_option_id == correct_option_id)
 
-    # Log poll answer
-    logging.info(f"Poll answer received. User: {user_id}, Poll ID: {poll_id}, Selected Option: {selected_option_id}, Correct: {is_correct}")
+#     # Log poll answer
+#     logging.info(f"Poll answer received. User: {user_id}, Poll ID: {poll_id}, Selected Option: {selected_option_id}, Correct: {is_correct}")
 
-    # Initialize poll participants if not already done
-    if poll_id not in poll_participants:
-        poll_participants[poll_id] = set()
+#     # Initialize poll participants if not already done
+#     if poll_id not in poll_participants:
+#         poll_participants[poll_id] = set()
 
-    # Add the user to poll_participants
-    poll_participants[poll_id].add(user_id)
-    logging.info(f"User {user_id} added to poll_participants for poll_id {poll_id}. Current participants: {poll_participants[poll_id]}")
+#     # Add the user to poll_participants
+#     poll_participants[poll_id].add(user_id)
+#     logging.info(f"User {user_id} added to poll_participants for poll_id {poll_id}. Current participants: {poll_participants[poll_id]}")
 
-    # Record the result in the table
-    response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    username = poll_answer.user.username if poll_answer.user.username else "Unknown"
-    record_user_response(file_path, user_id=user_id, username=username, day=day, response_time=response_time, result=is_correct)
+#     # Record the result in the table
+#     response_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#     username = poll_answer.user.username if poll_answer.user.username else "Unknown"
+#     record_user_response(file_path, user_id=user_id, username=username, day=day, response_time=response_time, result=is_correct)
 
-    # Notify the user
-    if is_correct:
-        context.bot.send_message(
-            chat_id=user_id,
-            text="🎉 Congratulations, your answer is correct!\n\n🏁 We will now wait for all participants to complete the game.\n\n✨ After that, we will randomly select 20 winners from those who answered correctly.\n\n☘️ Good luck!"
-        )
-    else:
-        context.bot.send_message(
-            chat_id=user_id,
-            text="❌ Oops, that’s the wrong answer!\n\nBut don’t give up!\n\n🤗 Try again tomorrow."
-        )
+#     # Notify the user
+#     if is_correct:
+#         context.bot.send_message(
+#             chat_id=user_id,
+#             text="🎉 Congratulations, your answer is correct!\n\n🏁 We will now wait for all participants to complete the game.\n\n✨ After that, we will randomly select 20 winners from those who answered correctly.\n\n☘️ Good luck!"
+#         )
+#     else:
+#         context.bot.send_message(
+#             chat_id=user_id,
+#             text="❌ Oops, that’s the wrong answer!\n\nBut don’t give up!\n\n🤗 Try again tomorrow."
+#         )
