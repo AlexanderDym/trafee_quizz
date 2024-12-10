@@ -60,7 +60,7 @@ def distribute_gifts_to_participants(
     day: int, 
     participants: list[models.Participant],
     available_gifts: list[models.Gift]
-) -> list[models.Participant]:
+) -> tuple[list[models.Participant], list[models.Gift]]:
     """
     Distribute available gifts for a specific day to participants.
     Number of gifts equals number of winners, distributes them randomly.
@@ -76,14 +76,15 @@ def distribute_gifts_to_participants(
     # Validate day input
     if not 1 <= day <= 7:
         logging.error(f"Invalid day number: {day}, must be between 1 and 7")
-        return []
+        return ()
     
     if not available_gifts or not participants:
         logging.error(f"No gifts or participants available for day {day}")
-        return []
+        return ()
         
     # Create list of gift names and shuffle them
     gift_names = [gift.name for gift in available_gifts]
+    updated_gifts = []
     random.shuffle(gift_names)
     
     # Distribute gifts
@@ -92,32 +93,44 @@ def distribute_gifts_to_participants(
     for participant, gift_name in zip(participants, gift_names):
         setattr(participant, day_prize_column, gift_name)
         logging.info(f"{gift_name} goes to {participant.telegram_username}!")
-    
+
+        day_gift_column = f"day_{day}_quantity"
+        for gift in available_gifts:
+            if gift.name == gift_name:
+                current_quantity_for_day = getattr(gift, day_gift_column) - 1
+                setattr(gift, day_gift_column, current_quantity_for_day)
+
+                ramain_gifts = getattr(gift, 'remain') - 1
+                setattr(gift, 'remain', ramain_gifts)
+                updated_gifts.append(gift)
+
     logging.info(f"Successfully distributed {len(participants)} gifts for day {day}")
-    return participants
+    return participants, updated_gifts
 
 
-def handle_poll_timeout_for_user(context):
-    """
-    Handle timeout for individual users who haven't answered the quiz
-    """
-    global CURRNET_DAY
-    recorded_users = database.get_registered_participants()
+# def handle_poll_timeout_for_user(context):
+#     """
+#     Handle timeout for individual users who haven't answered the quiz
+#     """
+#     global CURRNET_DAY
+#     recorded_users = database.get_registered_participants()
 
-    for user in recorded_users:
-        chat_id = user.telegram_id
+#     for user in recorded_users:
+#         chat_id = user.telegram_id
 
-        if getattr(user, f'day_{CURRNET_DAY}_answer'):
-            logging.info(f"User {user.telegram_id} has already answered the question. Timeout skipped.")
-            continue
+#         user_answer = getattr(user, f'day_{CURRNET_DAY}_answer')
 
-        try:
-            context.bot.send_message(
-                chat_id=chat_id, 
-                text="⏰ Time's up!\n\nYour response was not counted 🥵."
-            )
-        except Exception as e:
-            logging.error(f"Failed to notify user {user.telegram_username} (Chat ID: {chat_id}): {e}")
+#         if isinstance(user_answer, bool):
+#             logging.info(f"User {user.telegram_id} has already answered the question. Timeout skipped.")
+#             continue
+
+#         try:
+#             context.bot.send_message(
+#                 chat_id=chat_id, 
+#                 text="⏰ Time's up!\n\nYour response was not counted 🥵."
+#             )
+#         except Exception as e:
+#             logging.error(f"Failed to notify user {user.telegram_username} (Chat ID: {chat_id}): {e}")
 
 
 def process_answers(context):
@@ -126,6 +139,26 @@ def process_answers(context):
     """
     global CURRNET_DAY
     try:
+        recorded_users = database.get_registered_participants()
+
+        for user in recorded_users:
+            chat_id = user.telegram_id
+
+            user_answer = getattr(user, f'day_{CURRNET_DAY}_answer')
+
+            if isinstance(user_answer, bool):
+                logging.info(f"User {user.telegram_id} has already answered the question. Timeout skipped.")
+                continue
+            else:
+                try:
+                    context.bot.send_message(
+                        chat_id=chat_id, 
+                        text="⏰ Time's up!\n\nYour response was not counted 🥵."
+                    )
+                except Exception as e:
+                    logging.error(f"Failed to notify user {user.telegram_username} (Chat ID: {chat_id}): {e}")
+
+
         # Get available gifts for the day
         available_gifts_for_day = database.get_available_gifts(day=CURRNET_DAY)
         if not available_gifts_for_day:
@@ -139,7 +172,7 @@ def process_answers(context):
             return
 
         # Distribute gifts to winners
-        updated_winners = distribute_gifts_to_participants(
+        updated_winners, updated_gifts = distribute_gifts_to_participants(
             day=CURRNET_DAY, 
             participants=winners, 
             available_gifts=available_gifts_for_day
@@ -148,14 +181,16 @@ def process_answers(context):
         # Save winners to database
         if updated_winners:
             database.batch_update_participants(updated_winners)
+            database.batch_update_gifts(updated_gifts)
             notify_winners(context=context, winners = updated_winners)
             logging.info(f"Successfully processed answers and distributed gifts for day {CURRNET_DAY}")
         
         # Increment the day counter after all processing is complete
-        CURRNET_DAY += 1
-        
     except Exception as e:
         logging.error(f"Error processing answers for day {CURRNET_DAY}: {str(e)}")
+    finally:
+        CURRNET_DAY += 1
+        logging.info(f"CURRENT_DAY incremented to {CURRNET_DAY}")
 
 
 
@@ -201,7 +236,7 @@ def select_winners(availble_gifts:list) -> list[models.Participant]:
         day_field = f'day_{CURRNET_DAY}_answer'
         participant_answer = getattr(participant, day_field, None)
         
-        if participant_answer:
+        if participant_answer == True:
             correct_users.append(participant)
 
     if not correct_users:
@@ -258,11 +293,11 @@ def send_daily_quiz(context) -> None:
                     day=CURRNET_DAY
                 )
 
-                context.job_queue.run_once(
-                    handle_poll_timeout_for_user,
-                    when=QUIZ_TIMEOUT_SECONDS,
-                    context={'poll_id': poll_message.poll.id, 'day': CURRNET_DAY}
-                )
+                # context.job_queue.run_once(
+                #     handle_poll_timeout_for_user,
+                #     when=QUIZ_TIMEOUT_SECONDS,
+                #     context={'poll_id': poll_message.poll.id, 'day': CURRNET_DAY}
+                # )
                 
             except Exception as e:
                 logging.error(f"Failed to send quiz to {participant.trafee_username}: {str(e)}")
@@ -447,20 +482,8 @@ def main():
         logging.error("TELEGRAM_TOKEN is not set. Exiting.")
         return
 
-    # # Configure request parameters
-    # request_kwargs = {
-    #     'connect_timeout': 30.0,    # Increased connection timeout
-    #     'read_timeout': 30.0,       # Increased read timeout
-    # }
-
     try:
-        # Initialize with request parameters
-        updater = Updater(
-            token=TELEGRAM_TOKEN,
-            use_context=True,
-            # request_kwargs=request_kwargs
-        )
-        
+        updater = Updater(TELEGRAM_TOKEN, use_context=True)
         dp = updater.dispatcher
 
         # Add handlers
@@ -482,28 +505,59 @@ def main():
         )
 
         job_queue_quiz = updater.job_queue
-        job_queue_quiz.run_daily(
+        job_queue_quiz.run_once(
             send_daily_quiz,
             # time=time(12, 17)  # 15:00 UTC
-            time=datetime.now(timezone.utc) + timedelta(seconds=15)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=25)  # 15:00 UTC
+        )
+        job_queue_quiz.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=115)  # 15:00 UTC
+        )
+
+        job_queue_quiz.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=215)  # 15:00 UTC
+        )
+
+        job_queue_quiz.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=315)  # 15:00 UTC
+        )
+
+        job_queue_quiz.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=415)  # 15:00 UTC
+        )
+
+        job_queue_quiz.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=515)  # 15:00 UTC
+        )
+
+        job_queue_quiz.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime.now(timezone.utc) + timedelta(seconds=615)  # 15:00 UTC
         )
 
         # Start the bot with error handling
         logging.info("Starting bot...")
         updater.start_polling()
-        
         logging.info("Bot started successfully!")
-        updater.idle()
-
+        
     except Exception as e:
         logging.error(f"Error starting bot: {str(e)}")
-        # Wait before trying to reconnect
-        # time.sleep(5)
-        main()  # Restart the bot
 
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
-main()
+
+# main()

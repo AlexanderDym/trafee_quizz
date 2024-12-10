@@ -241,6 +241,48 @@ class Database:
             if 'session' in locals():
                 session.rollback()
             return False
+        
+    def batch_update_gifts(self, gifts: list[models.Gift]) -> bool:
+        """
+        Batch update multiple gifts in the database efficiently.
+        
+        Args:
+            gifts (List[Gift]): List of gift objects to update
+            
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            with self.get_db() as session:
+                # Create a mapping of gift IDs to their objects
+                gift_map = {gift.id: gift for gift in gifts}
+                
+                # Get all existing gifts in one query
+                db_gifts = session.query(models.Gift)\
+                    .filter(models.Gift.id.in_(gift_map.keys()))\
+                    .all()
+                
+                # Update each gift's attributes
+                for db_gift in db_gifts:
+                    updated_gift = gift_map[db_gift.id]
+                    for attr in [
+                        'name', 'day_1_quantity', 'day_2_quantity', 
+                        'day_3_quantity', 'day_4_quantity', 'day_5_quantity', 
+                        'day_6_quantity', 'day_7_quantity'
+                    ]:
+                        if hasattr(updated_gift, attr):
+                            setattr(db_gift, attr, getattr(updated_gift, attr))
+                
+                session.commit()
+                logging.info(f"Successfully updated {len(db_gifts)} gifts")
+                return True
+            
+        except SQLAlchemyError as e:
+            logging.error(f"Database error in batch_update_gifts: {str(e)}")
+            return False
+        except Exception as e:
+            logging.error(f"Error in batch_update_gifts: {str(e)}")
+            return False
     
     def get_participant_by_telegram_id(self, telegram_id: str) -> models.Participant|None:
         """

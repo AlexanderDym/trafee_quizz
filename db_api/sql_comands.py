@@ -105,6 +105,29 @@ def clear_table(conn: Optional[connection] = None) -> bool:
         if should_close_conn and conn:
             conn.close()
 
+def clear_gifts_table(conn: Optional[connection] = None) -> bool:
+    """Delete all records from the reservations table but keep the structure"""
+    should_close_conn = conn is None
+    try:
+        if conn is None:
+            conn = get_db_connection()
+        
+        cur = conn.cursor()
+        cur.execute(TRUNCATE_GIFT_TABLE_SQL)
+        conn.commit()
+        print("Successfully cleared all records from reservations table")
+        return True
+        
+    except Exception as e:
+        print(f"Error clearing table: {e}")
+        if conn:
+            conn.rollback()
+        return False
+        
+    finally:
+        if should_close_conn and conn:
+            conn.close()
+
 def reset_table(conn: Optional[connection] = None) -> bool:
     """Drop and recreate the reservations table"""
     should_close_conn = conn is None
@@ -335,25 +358,25 @@ if __name__ == "__main__":
         conn = get_db_connection()
         
         # Choose one of these operations:
-        # clear_table(conn)  # Just delete all records
-        # reset_table(conn)  # Drop and recreate table
+        clear_table(conn)  # Just delete all records
+        reset_table(conn)  # Drop and recreate table
         fill_participants_from_json('participants.json',conn)  # Drop and recreate table
 
+        clear_gifts_table()
+        reset_gift_table()
 
-        # reset_gift_table()
-
-        # gifts = [
-        #     Gift("Amazon Gift Card or Yandex Gift Card", quantities=[2, 2, 2, 2, 2, 2, 2]),
-        #     Gift("Google Gift Card", quantities=[3, 3, 3, 3, 3, 3, 3]),
-        #     Gift("Netflix 1 month or Amediateka Subscription 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
-        #     Gift("YouTube Premium for 3 month or Yandex plus", quantities=[2, 2, 2, 2, 2, 2, 2]),
-        #     Gift("Telegram Subscription for 3 month", quantities=[2, 2, 2, 2, 2, 2, 2]),
-        #     Gift("Telegram Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
-        #     Gift("Spotify Premium 3 month/ yandex музыка", quantities=[1, 1, 1, 1, 1, 1, 1]),
-        #     Gift("VPN Subscription 1year", quantities=[1, 1, 1, 1, 1, 1, 1]),
-        #     Gift("Trafee Bonus", quantities=[6, 6, 6, 6, 6, 6, 6])
-        # ]
-        # fill_gifts_from_list(gifts)
+        gifts = [
+            Gift("Amazon Gift Card or Yandex Gift Card",                quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Google Gift Card",                                    quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Netflix 1 month or Amediateka Subscription 3 month",  quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("YouTube Premium for 3 month or Yandex plus",          quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Telegram Subscription for 3 month",                   quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Telegram Subscription 1year",                         quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Spotify Premium 3 month/ yandex музыка",              quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("VPN Subscription 1year",                              quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Trafee Bonus",                                        quantities=[1, 1, 1, 1, 1, 1, 1])
+        ]
+        fill_gifts_from_list(gifts)
         
     except Exception as e:
         print(f"Operation failed: {e}")

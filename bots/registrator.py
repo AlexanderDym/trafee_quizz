@@ -163,31 +163,34 @@ def cancel(update: Update, context: CallbackContext):
 
 # Основная функция
 def main():
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    try:
+        updater = Updater(TELEGRAM_TOKEN, use_context=True)
+        dp = updater.dispatcher
 
-    # ConversationHandler для регистрации
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            1: [
-                MessageHandler(Filters.text & ~Filters.command, check_username),
-                CallbackQueryHandler(retry_handler, pattern="^retry$")
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
+        # ConversationHandler для регистрации
+        conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("start", start)],
+            states={
+                1: [
+                    MessageHandler(Filters.text & ~Filters.command, check_username),
+                    CallbackQueryHandler(retry_handler, pattern="^retry$")
+                ],
+            },
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
 
-    dp.add_handler(conv_handler)
+        dp.add_handler(conv_handler)
 
-    # # Команда для отправки таблицы
-    # dp.add_handler(CommandHandler("user_list", send_user_list))
+        # # Команда для отправки таблицы
+        # dp.add_handler(CommandHandler("user_list", send_user_list))
 
-    # Запуск бота
-    updater.start_polling()
-    logging.info("Регистрационный бот запущен")
-    updater.idle()
+        # Запуск бота
+        updater.start_polling()
+        logging.info("Bot started successfully!")
+
+    except Exception as e:
+        logging.error(f"Error starting bot: {str(e)}")
 
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-main()
+# logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+# main()
