@@ -199,9 +199,7 @@ def process_answers(context):
 
 def notify_users_about_next_day(context):
     try:
-        day = context.job.context.get('day', 0)
-        next_day = (day + 1) if (day + 1) <= 7 else 1
-        
+
         participants = database.get_registered_participants()
         
         if not participants:
@@ -212,7 +210,7 @@ def notify_users_about_next_day(context):
             try:
                 context.bot.send_message(
                     chat_id=participant.telegram_id,
-                    text=f"🎄 Reminder! Tomorrow is Day {next_day} of our 7-day holiday giveaway! 🎁✨\n\n"
+                    text=f"🎄 Reminder! Tomorrow is Day {CURRNET_DAY} of our 7-day holiday giveaway! 🎁✨\n\n"
                          "Don't miss your chance to win more amazing prizes.\n\n"
                          "🕒 The fun starts at 15:00 UTC sharp!"
                 )
@@ -221,6 +219,28 @@ def notify_users_about_next_day(context):
                 
     except Exception as e:
         logging.error(f"Error in notify_users_about_next_day: {str(e)}")
+
+
+def notify_users_about_final(context):
+    try:
+        participants = database.get_registered_participants()
+        
+        if not participants:
+            logging.warning("No registered participants found to notify about next day")
+            return
+            
+        for participant in participants:
+            try:
+                context.bot.send_message(
+                    chat_id=participant.telegram_id,
+                    text=f"🎄✨ FINAL 🎄✨"
+                )
+            except Exception as e:
+                logging.error(f"Failed to send next day reminder to {participant.telegram_username}: {e}")
+                
+    except Exception as e:
+        logging.error(f"Error in notify_users_about_next_day: {str(e)}")
+
 
 def select_winners(availble_gifts:list) -> list[models.Participant]:
     day_column = f"day_{CURRNET_DAY}_quantity"
@@ -380,6 +400,34 @@ def notify_users_about_quiz(context):
     except Exception as e:
         logging.error(f"Error getting registered participants for notifications: {e}")
 
+
+# def notify_users_about_next_day(context):
+#     """
+#     Send quiz reminder notification to all registered participants
+#     """
+#     try:
+#         participants = database.get_registered_participants()
+        
+#         if not participants:
+#             logging.warning("No registered participants found to notify")
+#             return
+            
+#         for participant in participants:
+#             try:
+#                 context.bot.send_message(
+#                     chat_id=participant.telegram_id,
+#                     text="NEXT QUIZ SOON!🔥🔔🔥\n\n"
+#                 )
+#                 logging.info(f"Reminder sent to {participant.telegram_username} "
+#                             f"(Telegram ID: {participant.telegram_id})")
+                            
+#             except Exception as e:
+#                 logging.error(f"Failed to send reminder to {participant.telegram_username}: {e}")
+                
+#     except Exception as e:
+#         logging.error(f"Error getting registered participants for notifications: {e}")
+
+
 def poll_handler(update: Update, context) -> None:
     """Handle quiz poll answers from users"""
     try:
@@ -488,57 +536,108 @@ def main():
         dp.add_handler(PollAnswerHandler(poll_handler))
 
         # Log server time
-        logging.info(f"Current server UTC time: {datetime.now(timezone.utc)}")
+        datetime_now = datetime.now(timezone.utc)
+        logging.info(f"Current server UTC time: {datetime_now}")
 
         # Schedule jobs
-        job_queue_notifications = updater.job_queue
+        job_queue = updater.job_queue
 
-        job_queue_notifications.run_daily(
+        job_queue.run_once(
             notify_users_about_quiz,
-            # time=time(12, 16),  # 14:55 UTC
-            time=datetime.now(timezone.utc) + timedelta(seconds=5),  # 14:55 UTC
+            when=datetime_now + timedelta(seconds=35)
+        )
+        job_queue.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=40)  # 15:00 UTC
+        )
+        job_queue.run_once(
+            notify_users_about_next_day,
+            when=datetime_now + timedelta(seconds=100)
         )
 
-        job_queue_quiz = updater.job_queue
-        job_queue_quiz.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=25)  # 15:00 UTC
+        job_queue.run_once(
+            notify_users_about_quiz,
+            when=datetime_now + timedelta(seconds=130)
         )
-        job_queue_quiz.run_once(
+        job_queue.run_once(
             send_daily_quiz,
             # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=115)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=140)  # 15:00 UTC
         )
-
-        job_queue_quiz.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=215)  # 15:00 UTC
+        job_queue.run_once(
+            notify_users_about_next_day,
+            when=datetime_now + timedelta(seconds=200)
         )
 
-        job_queue_quiz.run_once(
+        job_queue.run_once(
+            notify_users_about_quiz,
+            when=datetime_now + timedelta(seconds=230)
+        )
+        job_queue.run_once(
             send_daily_quiz,
             # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=315)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=240)  # 15:00 UTC
+        )
+        job_queue.run_once(
+            notify_users_about_next_day,
+            when=datetime_now + timedelta(seconds=300)
         )
 
-        job_queue_quiz.run_once(
+        job_queue.run_once(
+            notify_users_about_quiz,
+            when=datetime_now + timedelta(seconds=330)
+        )
+        job_queue.run_once(
             send_daily_quiz,
             # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=415)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=340)  # 15:00 UTC
+        )
+        job_queue.run_once(
+            notify_users_about_next_day,
+            when=datetime_now + timedelta(seconds=400)
         )
 
-        job_queue_quiz.run_once(
+        job_queue.run_once(
+            notify_users_about_quiz,
+            when=datetime_now + timedelta(seconds=430)
+        )
+        job_queue.run_once(
             send_daily_quiz,
             # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=515)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=440)  # 15:00 UTC
+        )
+        job_queue.run_once(
+            notify_users_about_next_day,
+            when=datetime_now + timedelta(seconds=500)
         )
 
-        job_queue_quiz.run_once(
+        job_queue.run_once(
+            notify_users_about_quiz,
+            when=datetime_now + timedelta(seconds=530)
+        )
+        job_queue.run_once(
             send_daily_quiz,
             # time=time(12, 17)  # 15:00 UTC
-            when=datetime.now(timezone.utc) + timedelta(seconds=615)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=540)  # 15:00 UTC
+        )
+        job_queue.run_once(
+            notify_users_about_next_day,
+            when=datetime_now + timedelta(seconds=600)
+        )
+
+        job_queue.run_once(
+            notify_users_about_quiz,
+            when=datetime_now + timedelta(seconds=630)
+        )
+        job_queue.run_once(
+            send_daily_quiz,
+            # time=time(12, 17)  # 15:00 UTC
+            when=datetime_now + timedelta(seconds=640)  # 15:00 UTC
+        )
+        job_queue.run_once(
+            notify_users_about_final,
+            when=datetime_now + timedelta(seconds=700)
         )
 
         # Start the bot with error handling
