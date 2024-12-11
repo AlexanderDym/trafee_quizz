@@ -263,6 +263,10 @@ def select_winners(availble_gifts:list) -> list[models.Participant]:
     for participant in participants:
         day_field = f'day_{CURRNET_DAY}_answer'
         participant_answer = getattr(participant, day_field, None)
+
+        if isinstance(participant_answer, str):
+            participant_answer = True if (participant_answer=='true') or (participant_answer=='True') else False
+            setattr(participant, f'day_{CURRNET_DAY}_answer', participant_answer)
         
         if isinstance(participant_answer, bool) and participant_answer == True:
             correct_users.append(participant)
