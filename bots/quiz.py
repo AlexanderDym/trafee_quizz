@@ -219,7 +219,7 @@ def notify_users_about_next_day(context):
                     chat_id=participant.telegram_id,
                     text=f"🎄 Reminder! Tomorrow is Day {CURRNET_DAY} of our 7-day holiday giveaway! 🎁✨\n\n"
                          "Don't miss your chance to win more amazing prizes.\n\n"
-                         "🕒 The fun starts at 15:00 UTC sharp!"
+                         "🕒 The fun starts at 16:00 UTC sharp!"
                 )
             except Exception as e:
                 logging.error(f"Failed to send next day reminder to {participant.telegram_username}: {e}")
@@ -496,7 +496,7 @@ def start_command_handler(update, context):
     # English message
     text_message = (
         "🎉 The quiz has started!\n\n"
-        "⏰ Wait for the question, which we will send at 3:00 PM.\n"
+        "⏰ Wait for the question, which we will send at 16:00 UTC.\n"
         "📢 Don’t worry, we’ll send you a reminder 5 minutes before the question!"
     )
 
