@@ -487,11 +487,25 @@ def start_command_handler(update, context):
     chat_id = update.effective_chat.id
     username = user.username if user.username else "Unknown"
 
-    # Проверка авторизации
+    # Authorization check
     if not database.is_authorized_user(update):
         logging.warning(f"Unauthorized user @{username} tried to access the bot.")
         context.bot.send_message(chat_id=chat_id, text="⛔ You are not authorized to use this bot.")
         return
+
+    # English message
+    text_message = (
+        "🎉 The quiz has started!\n\n"
+        "⏰ Wait for the question, which we will send at 3:00 PM.\n"
+        "📢 Don’t worry, we’ll send you a reminder 5 minutes before the question!"
+    )
+
+    # Send text message
+    context.bot.send_message(chat_id=chat_id, text=text_message)
+
+    # Logging
+    logging.info(f"Sent quiz start message to @{username}")
+
     
 def list_handler(update, context):
     user = update.message.from_user
@@ -558,8 +572,8 @@ def main():
         job_queue = updater.job_queue
 
         # Начальная дата и время первого дня
-        start_date = datetime(2024, 12, 11, 14, 0, tzinfo=timezone.utc)
-        end_date = datetime(2024, 12, 17, 15, 0, tzinfo=timezone.utc)
+        start_date = datetime(2024, 12, 11, 15, 0, tzinfo=timezone.utc)
+        end_date = datetime(2024, 12, 17, 14, 20, tzinfo=timezone.utc)
         current_date = start_date
 
         while current_date <= end_date:
@@ -586,12 +600,22 @@ def main():
             logging.info(f"Scheduled quiz for Day {day_number} on {current_date.isoformat()}")
             current_date += timedelta(days=1)  # Следующий день
 
+        # Напоминание о финале после последнего дня квиза
+        job_queue.run_once(
+            notify_users_about_final,
+            when=end_date + timedelta(seconds=100)  # Отправить через 100 секунд после конца последнего дня
+        )
+
+        logging.info("Scheduled final reminder after the last quiz day")
+
         # Start the bot with error handling
         logging.info("Starting bot...")
         updater.start_polling()
         logging.info("Bot started successfully!")
 
     except Exception as e:
+        logging.error(f"Error starting bot: {str(e)}")
+
         logging.error(f"Error starting bot: {str(e)}")
 
 
