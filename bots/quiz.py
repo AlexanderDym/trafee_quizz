@@ -23,7 +23,7 @@ from bots.config import file_path, SUPERADMIN_USERNAME
 load_dotenv()
 
 FIRST_DATETIME = None
-CURRNET_DAY = 1
+CURRNET_DAY = 1 
 QUIZ_TIMEOUT_SECONDS = 30
 SUPERADMIN_USERNAME = "Alexander_Dym"
 

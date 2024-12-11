@@ -29,7 +29,7 @@ if not TELEGRAM_TOKEN:
 
 database = Database()
 
-main_bot_link = "https://t.me/trafee_quizzy_bot"  # Ссылка на основного бота
+main_bot_link = "https://t.me/quiizzy_test_bot"  # Ссылка на основного бота
 
 # # Выделение пользователя зелёным цветом
 # def mark_user_as_registered(username):
