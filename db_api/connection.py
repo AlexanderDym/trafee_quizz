@@ -336,7 +336,7 @@ class Database:
                     return False
                     
                 # Update fields for the specific day
-                setattr(participant, f'day_{day}_answer', answer_is_correct)
+                setattr(participant, f'day_{day}_answer', bool(answer_is_correct))
                 
                 # Commit the changes
                 session.commit()

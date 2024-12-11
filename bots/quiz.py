@@ -147,6 +147,10 @@ def process_answers(context):
 
             user_answer = getattr(user, f'day_{CURRNET_DAY}_answer')
 
+            if isinstance(user_answer, str):
+                user_answer = True if (user_answer=='true') or (user_answer=='True') else False
+                setattr(user, f'day_{CURRNET_DAY}_answer', user_answer)
+
             if isinstance(user_answer, bool):
                 logging.info(f"User {user.telegram_id} has already answered the question. Timeout skipped.")
                 continue
@@ -198,8 +202,11 @@ def process_answers(context):
 
 
 def notify_users_about_next_day(context):
-    try:
 
+    if CURRNET_DAY >= 8:
+        return
+    
+    try:
         participants = database.get_registered_participants()
         
         if not participants:
@@ -320,7 +327,7 @@ def send_daily_quiz(context) -> None:
         # After all quizes handle_poll_timeout_for_user done
         context.job_queue.run_once(
             process_answers,
-            when=QUIZ_TIMEOUT_SECONDS + 1,  # Run slightly after individual timeouts
+            when=QUIZ_TIMEOUT_SECONDS + 10,  # Run slightly after individual timeouts
             context={'day': CURRNET_DAY}
         )
         
@@ -450,7 +457,7 @@ def poll_handler(update: Update, context) -> None:
             return
             
         question = quiz_questions[CURRNET_DAY-1]
-        is_correct = (selected_option_id == question.correct_answer_position)
+        is_correct = bool(selected_option_id == question.correct_answer_position)
 
         save_response_res = database.save_participant_response_to_db(telegram_id=user_id, day=CURRNET_DAY, answer_is_correct=is_correct)
         if not save_response_res:
