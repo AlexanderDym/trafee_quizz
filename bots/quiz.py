@@ -546,109 +546,40 @@ def main():
         # Schedule jobs
         job_queue = updater.job_queue
 
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=35)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=40)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_next_day,
-            when=datetime_now + timedelta(seconds=100)
-        )
+        # Начальная дата и время первого дня
+        start_date = datetime(2024, 12, 11, 14, 0, tzinfo=timezone.utc)
+        end_date = datetime(2024, 12, 17, 15, 0, tzinfo=timezone.utc)
+        current_date = start_date
 
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=130)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=140)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_next_day,
-            when=datetime_now + timedelta(seconds=200)
-        )
+        while current_date <= end_date:
+            day_number = (current_date - start_date).days + 1
 
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=230)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=240)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_next_day,
-            when=datetime_now + timedelta(seconds=300)
-        )
+            # Напоминание за 5 минут до квиза
+            job_queue.run_once(
+                notify_users_about_quiz,
+                when=current_date - timedelta(minutes=5)
+            )
 
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=330)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=340)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_next_day,
-            when=datetime_now + timedelta(seconds=400)
-        )
+            # Квиз
+            job_queue.run_once(
+                send_daily_quiz,
+                when=current_date
+            )
 
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=430)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=440)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_next_day,
-            when=datetime_now + timedelta(seconds=500)
-        )
+            # Напоминание о следующем дне через 90 секунд после квиза
+            job_queue.run_once(
+                notify_users_about_next_day,
+                when=current_date + timedelta(seconds=90)
+            )
 
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=530)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=540)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_next_day,
-            when=datetime_now + timedelta(seconds=600)
-        )
-
-        job_queue.run_once(
-            notify_users_about_quiz,
-            when=datetime_now + timedelta(seconds=630)
-        )
-        job_queue.run_once(
-            send_daily_quiz,
-            # time=time(12, 17)  # 15:00 UTC
-            when=datetime_now + timedelta(seconds=640)  # 15:00 UTC
-        )
-        job_queue.run_once(
-            notify_users_about_final,
-            when=datetime_now + timedelta(seconds=700)
-        )
+            logging.info(f"Scheduled quiz for Day {day_number} on {current_date.isoformat()}")
+            current_date += timedelta(days=1)  # Следующий день
 
         # Start the bot with error handling
         logging.info("Starting bot...")
         updater.start_polling()
         logging.info("Bot started successfully!")
-        
+
     except Exception as e:
         logging.error(f"Error starting bot: {str(e)}")
 
@@ -657,5 +588,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+
 
 # main()
