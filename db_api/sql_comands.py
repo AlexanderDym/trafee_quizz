@@ -344,7 +344,7 @@ if __name__ == "__main__":
         conn = get_db_connection()
         
         # Уберите вызовы clear_table и reset_table:
-        clear_table(conn)  # Удаляет данные — НЕ НУЖНО
+        #clear_table(conn)  # Удаляет данные — НЕ НУЖНО
         # reset_table(conn)  # Удаляет и пересоздает таблицу — НЕ НУЖНО
         
         # Просто добавляем или обновляем участников

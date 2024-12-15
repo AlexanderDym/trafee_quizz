@@ -630,7 +630,7 @@ def main():
         job_queue = updater.job_queue
 
         # Начальная дата и время первого дня
-        start_date = datetime(2024, 12, 15, 10, 30, tzinfo=timezone.utc)
+        start_date = datetime(2024, 12, 17, 14, 0, tzinfo=timezone.utc)
         end_date = datetime(2024, 12, 23, 14, 1, tzinfo=timezone.utc)
         current_date = start_date
 
