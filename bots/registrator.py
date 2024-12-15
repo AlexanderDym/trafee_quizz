@@ -29,7 +29,7 @@ if not TELEGRAM_TOKEN:
 
 database = Database()
 
-main_bot_link = "https://t.me/quiizzy_test_bot"  # Ссылка на основного бота
+main_bot_link = "https://t.me/TrafeeQuizBot"  # Ссылка на основного бота
 
 # # Выделение пользователя зелёным цветом
 # def mark_user_as_registered(username):
@@ -79,12 +79,22 @@ main_bot_link = "https://t.me/quiizzy_test_bot"  # Ссылка на основ�
 
 # Функция для старта регистрации
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "👋🎅🎄Welcome aboard!\n\n"
-        "Please enter your *Trafee username*✨\n\n""So we can verify your access and get you started 🚀",
+    # URL изображения
+    image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/sign_up.png"
+
+    # Отправляем изображение с текстом
+    context.bot.send_photo(
+        chat_id=update.effective_chat.id,
+        photo=image_url,
+        caption=(
+            "👋🎅🎄Welcome aboard!\n\n"
+            "Please enter your *Trafee username*✨\n\n"
+            "So we can verify your access and get you started 🚀"
+        ),
         parse_mode="Markdown"
     )
     return 1
+
 
 
 # Проверка username
@@ -94,9 +104,14 @@ def check_username(update: Update, context: CallbackContext):
     already_registered = database.get_participant_by_telegram_id(str(update.message.from_user.id))
 
     if already_registered:
-        update.message.reply_text(
-            f"✅ {already_registered.trafee_username}, you're already registered!\n\n"
-            f"Here's the link to [the main bot]({main_bot_link}) to continue your journey. 🚀",
+        # Отправляем сообщение с картинкой для уже зарегистрированных пользователей
+        context.bot.send_photo(
+            chat_id=update.effective_chat.id,
+            photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/already_done.png",
+            caption=(
+                f"✅ {already_registered.trafee_username}, you're already registered!\n\n"
+                f"Here's the link to [the main bot]({main_bot_link}) to continue your journey. 🚀"
+            ),
             parse_mode="Markdown"
         )
         return ConversationHandler.END
@@ -105,21 +120,27 @@ def check_username(update: Update, context: CallbackContext):
 
     if participant:
         if participant.telegram_id:
-            # Если пользователь уже зарегистрирован
-            update.message.reply_text(
-                f"✅ {username}, you're already registered!\n\n"
-                f"Here's the link to [the main bot]({main_bot_link}) to continue your journey. 🚀",
+            # Отправляем сообщение с картинкой для пользователей, которые уже зарегистрированы
+            context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/already_done.png",
+                caption=(
+                    f"✅ {username}, you're already registered!\n\n"
+                    f"Here's the link to [the main bot]({main_bot_link}) to continue your journey. 🚀"
+                ),
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
 
         else:
-            # Если пользователь найден, но ещё не зарегистрирован
-            # mark_user_as_registered(username)
-            # log_registration(username, telegram_username)  # Логируем регистрацию
-            update.message.reply_text(
-                f"🎉 Congratulations, {username}!\n\nYou’ve successfully registered.\n"
-                f"Jump into [the main bot]({main_bot_link}) to start exploring! 🌟",
+            # Отправляем сообщение с картинкой для успешной регистрации
+            context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/reg_done.png",
+                caption=(
+                    f"🎉 Congratulations, {username}!\n\nYou’ve successfully registered.\n"
+                    f"Jump into [the main bot]({main_bot_link}) to start exploring! 🌟"
+                ),
                 parse_mode="Markdown"
             )
             participant.telegram_id = update.message.from_user.id
@@ -129,16 +150,21 @@ def check_username(update: Update, context: CallbackContext):
             return ConversationHandler.END
 
     else:
-        # Если пользователь не найден
+        # Если пользователь не найден, отправляем сообщение с картинкой
         keyboard = [[InlineKeyboardButton("🔄 Try Again", callback_data="retry")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        update.message.reply_text(
-            "😔 Sorry, but your Trafee username isn’t in the list of authorized users.\n\n"
-            "If you think this is a mistake, please contact your manager for assistance.☘️",
+        context.bot.send_photo(
+            chat_id=update.effective_chat.id,
+            photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/wrong-1.png",
+            caption=(
+                "😔 Sorry, but your Trafee username isn’t in the list.\n\n"
+                "If you think this is a mistake, please contact your manager for assistance.☘️"
+            ),
             reply_markup=reply_markup
         )
         return 1
+
 
 
 
@@ -146,11 +172,19 @@ def check_username(update: Update, context: CallbackContext):
 def retry_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    query.edit_message_text(
-        "🚀 No worries!\n\nPlease enter your *Trafee username* again, and let's try one more time.",
+    
+    # Отправка сообщения с картинкой
+    context.bot.send_photo(
+        chat_id=query.message.chat.id,
+        photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/try_again.png",  # Укажите URL вашей картинки
+        caption=(
+            "🚀 No worries!\n\n"
+            "Please enter your *Trafee username* again, and let's try one more time."
+        ),
         parse_mode="Markdown"
     )
     return 1
+
 
 # Cancel registration
 def cancel(update: Update, context: CallbackContext):

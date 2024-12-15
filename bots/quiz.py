@@ -46,13 +46,13 @@ class QuizQuestion:
 
 # Quiz questions for 7 days
 quiz_questions = [
-    QuizQuestion("What is an offer? 🎄🎅", ["A call-to-action on a landing page like Hurry up for gifts! 🎁", "A product or service that the advertiser pays for", "Creative content used in advertising, like a holiday card from Santa ❄️"], "A product or service that the advertiser pays for"),
-    QuizQuestion("Which button is most commonly used for calls-to-action on Christmas's landing pages? 🎄🎁", ["Read more", "Share", "Buy now"], "Buy now"),
-    QuizQuestion("Which social media became the favourite among affiliates during the holiday season thanks to short and dynamic videos? 🎥✨", ["Facebook", "TikTok", "Twitter"], "TikTok"),
-    QuizQuestion("Which advertising strategy сan find the most magical ad for the upcoming holidays? 🎅🎄", ["Scaling", "A/B testing", "Retargeting"], "A/B testing"),
-    QuizQuestion("What's the metric that measures your earnings per visitor? 🎅💰", ["EPC (Earnings Per Click)", "CTR (Click-Through Rate)", "CPA (Cost Per Action)"], "EPC (Earnings Per Click)"),
-    QuizQuestion("What is ROI in affiliate marketing? 🎁📈", ["Ad impressions", "Return on investment and campaign profitability", "Revenue per individual sale"], "Return on investment and campaign profitability"),
-    QuizQuestion("What Does CPM Mean in Holiday Advertising? 🎅📊", ["Cost Per Million (cost for one million clicks)", "Cost Per Millisecond (cost for one millisecond)", "Cost Per Mille (cost for one thousand impressions)"], "Cost Per Mille (cost for one thousand impressions)"),
+    QuizQuestion("What's the goal of creatives before Сhristmas? 🎅🎁", ["Cut ad costs for a bigger holiday feast 🍗", "Attract attention with festive deals 🎆", "Boost site performance for holiday orders 🎁"], "Attract attention with festive deals 🎆"),
+    QuizQuestion("What page do users land on after clicking a holiday ad? 🎁🎄", ["The homepage, where magical gifts await 🎁🎄", "An ad banner with a festive ribbon 🎀", "A landing page with a shiny offer 🦌"], "A landing page with a shiny offer 🦌"),
+    QuizQuestion("What's the magic number that shows how much you earn from one visitor? 🎅💰", ["EPC (Earnings Per Click)", "CTR (Click-Through Rate)", "CPA (Cost Per Action)"], "EPC (Earnings Per Click)"),
+    QuizQuestion("What's an offer? 🎄🎅", ["A call-to-action like Hurry, grab the gifts! 🎁", "A product or service the advertiser pays for", "A festive Santa card creative ❄️"], "A product or service the advertiser pays for"),
+    QuizQuestion("Which ad format often pops up like a surprise? 🎄🎁", ["Pop-up, like a little Christmas gift 🎁", "Banner, like festive Christmas lights ✨", "Video, with Santa’s holiday greetings 🎅🎥"], "Pop-up, like a little Christmas gift 🎁"),
+    QuizQuestion("Which strategy finds the most magical ad this holiday season? 🎅🎄", ["Scaling up", "A/B testing", "Automation"], "RA/B testing"),
+    QuizQuestion("Which social network is the affiliate marketer's fave for festive short videos? 🎥✨", ["Facebook", "TikTok", "Pinterest"], "TikTok"),
 ]
 
 
@@ -142,60 +142,84 @@ def process_answers(context):
     try:
         recorded_users = database.get_registered_participants()
 
+        correct_users = []
+        no_response_users = []
         for user in recorded_users:
             chat_id = user.telegram_id
-
             user_answer = getattr(user, f'day_{CURRNET_DAY}_answer')
 
+            # Обработка строковых значений в ответах
             if isinstance(user_answer, str):
-                user_answer = True if (user_answer=='true') or (user_answer=='True') else False
+                user_answer = True if (user_answer == 'true') or (user_answer == 'True') else False
                 setattr(user, f'day_{CURRNET_DAY}_answer', user_answer)
 
-            if isinstance(user_answer, bool):
-                logging.info(f"User {user.telegram_id} has already answered the question. Timeout skipped.")
-                continue
-            else:
-                try:
-                    context.bot.send_message(
-                        chat_id=chat_id, 
-                        text="⏰ Time's up!\n\nYour response was not counted 🥵."
-                    )
-                except Exception as e:
-                    logging.error(f"Failed to notify user {user.telegram_username} (Chat ID: {chat_id}): {e}")
+            if isinstance(user_answer, bool) and user_answer:
+                correct_users.append(user)
+            elif user_answer is None:  # Пользователь не дал ответа
+                no_response_users.append(user)
 
+        # Уведомление пользователей, которые не ответили
+        for user in no_response_users:
+            try:
+                context.bot.send_photo(
+                    chat_id=user.telegram_id,
+                    photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/times_is_up.png",  # URL картинки
+                    caption="⏰ Time's up!\n\nYour response was not counted 🥵."
+                )
+                logging.info(f"Notified user {user.telegram_username} about timeout.")
+            except Exception as e:
+                logging.error(f"Failed to notify user {user.telegram_username} about timeout: {e}")
 
-        # Get available gifts for the day
+        # Проверка наличия доступных подарков
         available_gifts_for_day = database.get_available_gifts(day=CURRNET_DAY)
         if not available_gifts_for_day:
             logging.error(f"No available gifts for day {CURRNET_DAY}")
             return
 
-        # Select winners based on correct answers
+        # Выбор победителей
         winners = select_winners(availble_gifts=available_gifts_for_day)
-        if not winners:
-            logging.info(f"No winners for day {CURRNET_DAY}")
-            return
 
-        # Distribute gifts to winners
+        # Распределение подарков
         updated_winners, updated_gifts = distribute_gifts_to_participants(
             day=CURRNET_DAY, 
             participants=winners, 
             available_gifts=available_gifts_for_day
         )
 
-        # Save winners to database
+        # Сохранение победителей и уведомление их
         if updated_winners:
             database.batch_update_participants(updated_winners)
             database.batch_update_gifts(updated_gifts)
-            notify_winners(context=context, winners = updated_winners)
+            notify_winners(context=context, winners=updated_winners)
             logging.info(f"Successfully processed answers and distributed gifts for day {CURRNET_DAY}")
-        
-        # Increment the day counter after all processing is complete
+
+        # Исключаем победителей из списка non_winners
+
+        winner_ids = {winner.telegram_id for winner in winners}
+        non_winners = [participant for participant in correct_users if participant.telegram_id not in winner_ids]
+
+        # Уведомление тех, кто ответил правильно, но не выиграл
+        for participant in non_winners:
+            try:
+                context.bot.send_photo(
+                    chat_id=participant.telegram_id,
+                    photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/ohhh_no.png",  # URL картинки
+                    caption="Thank you for participating! 😊\n\n"
+                            "☹️ Unfortunately, you were not among today’s winners.\n"
+                            "🎁 But there are more prizes to win in the upcoming days. Don’t miss out!"
+                )
+                logging.info(f"Notified non-winning participant @{participant.telegram_username}")
+            except Exception as e:
+                logging.error(f"Failed to notify non-winning participant @{participant.telegram_username}: {e}")
+
     except Exception as e:
         logging.error(f"Error processing answers for day {CURRNET_DAY}: {str(e)}")
     finally:
         CURRNET_DAY += 1
         logging.info(f"CURRENT_DAY incremented to {CURRNET_DAY}")
+
+
+
 
 
 
@@ -215,17 +239,21 @@ def notify_users_about_next_day(context):
             
         for participant in participants:
             try:
-                context.bot.send_message(
+                # Отправка изображения напрямую по URL
+                context.bot.send_photo(
                     chat_id=participant.telegram_id,
-                    text=f"🎄 Reminder! Tomorrow is Day {CURRNET_DAY} of our 7-day holiday giveaway! 🎁✨\n\n"
-                         "Don't miss your chance to win more amazing prizes.\n\n"
-                         "🕒 The fun starts at 16:00 UTC sharp!"
+                    photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/remind_next_day.png",
+                    caption=f"🎄 Reminder!\n\nTomorrow is Day {CURRNET_DAY} of our 7-day holiday giveaway! 🎁✨\n\n"
+                            "🎊 Don't miss your chance to win more amazing prizes.\n\n"
+                            "🕒 The fun starts at 15:00 UTC sharp!"
                 )
             except Exception as e:
                 logging.error(f"Failed to send next day reminder to {participant.telegram_username}: {e}")
                 
     except Exception as e:
         logging.error(f"Error in notify_users_about_next_day: {str(e)}")
+
+
 
 
 def notify_users_about_final(context):
@@ -233,20 +261,25 @@ def notify_users_about_final(context):
         participants = database.get_registered_participants()
         
         if not participants:
-            logging.warning("No registered participants found to notify about next day")
+            logging.warning("No registered participants found to notify about final day")
             return
             
         for participant in participants:
             try:
-                context.bot.send_message(
+                # Отправка изображения с сообщением
+                context.bot.send_photo(
                     chat_id=participant.telegram_id,
-                    text=f"🎄✨ FINAL 🎄✨"
+                    photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/final_img.png",  # URL картинки
+                    caption="🎄✨ FINAL 🎄✨\n\n"
+                            "Thank you all for participating this quiz🧡\n\n"
+                            "On December 24th, we’ll announce the lucky winners on our Telegram channel👇\n\nhttps://t.me/TrafeeCPA\n\n"
+                            "Three winners will each receive a PS5 🤯!\n\n"  "Subscribe now not to miss it! 🥳"
                 )
             except Exception as e:
-                logging.error(f"Failed to send next day reminder to {participant.telegram_username}: {e}")
+                logging.error(f"Failed to send final reminder to {participant.telegram_username}: {e}")
                 
     except Exception as e:
-        logging.error(f"Error in notify_users_about_next_day: {str(e)}")
+        logging.error(f"Error in notify_users_about_final: {str(e)}")
 
 
 def select_winners(availble_gifts:list) -> list[models.Participant]:
@@ -364,16 +397,15 @@ def notify_winners(context, winners: list[models.Participant]) -> None:
                 continue
                 
             try:
-                message = (
-                    f"🎉 Congratulations! You're a winner of Day {CURRNET_DAY}'s quiz! 🏆\n\n"
-                    f"🎁 Your prize: {prize}\n\n"
-                    "Our team will contact you soon with details about claiming your prize.\n\n"
-                    "Stay tuned for more chances to win in our upcoming quizzes! ✨"
-                )
-                
-                context.bot.send_message(
+                # Отправка сообщения с изображением
+                context.bot.send_photo(
                     chat_id=winner.telegram_id,
-                    text=message
+                    photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/winner_img.png",  # URL картинки
+                    caption=(
+                        f"🎉 Congratulations! You're a winner of Day {CURRNET_DAY}'s quiz! 🏆\n\n"
+                        f"🎁 Your prize: {prize}\n\n"
+                        "Our team will contact you with your prize details.\n\n"
+                    )
                 )
                 
                 logging.info(f"Successfully notified winner {winner.telegram_username} about prize {prize}")
@@ -384,13 +416,15 @@ def notify_winners(context, winners: list[models.Participant]) -> None:
     except Exception as e:
         logging.error(f"Error in notify_winners: {str(e)}")
 
+
+
+
 def notify_users_about_quiz(context):
     """
     Send quiz reminder notification to all registered participants
     """
     try:
-
-        if CURRNET_DAY >= 8:  # !!!!!
+        if CURRNET_DAY >= 8:
             sys.exit()
 
         participants = database.get_registered_participants()
@@ -401,19 +435,22 @@ def notify_users_about_quiz(context):
             
         for participant in participants:
             try:
-                context.bot.send_message(
+                # Отправка изображения с текстом
+                context.bot.send_photo(
                     chat_id=participant.telegram_id,
-                    text="The quiz will start in 5 minutes!🔔\n\n"
-                        "🔥Get ready!"
+                    photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/5_min_reminder.png",  # URL картинки
+                    caption="The quiz will start in 5 minutes! 🔔\n\n"
+                            "🔥 Get ready!"
                 )
                 logging.info(f"Reminder sent to {participant.telegram_username} "
-                            f"(Telegram ID: {participant.telegram_id})")
+                             f"(Telegram ID: {participant.telegram_id})")
                             
             except Exception as e:
                 logging.error(f"Failed to send reminder to {participant.telegram_username}: {e}")
                 
     except Exception as e:
         logging.error(f"Error getting registered participants for notifications: {e}")
+
 
 
 # def notify_users_about_next_day(context):
@@ -456,31 +493,46 @@ def poll_handler(update: Update, context) -> None:
         selected_option_id = answer.option_ids[0]
 
         poll_data = context.bot_data.get(poll_id, {})
-        if CURRNET_DAY-1 >= len(quiz_questions):
+        if CURRNET_DAY - 1 >= len(quiz_questions):
             logging.error(f"Invalid day {CURRNET_DAY} for poll {poll_id}")
             return
             
-        question = quiz_questions[CURRNET_DAY-1]
+        question = quiz_questions[CURRNET_DAY - 1]
         is_correct = bool(selected_option_id == question.correct_answer_position)
 
-        save_response_res = database.save_participant_response_to_db(telegram_id=user_id, day=CURRNET_DAY, answer_is_correct=is_correct)
+        save_response_res = database.save_participant_response_to_db(
+            telegram_id=user_id, day=CURRNET_DAY, answer_is_correct=is_correct
+        )
         if not save_response_res:
             logging.error(f"Failed to record response for user {user_id}")
             return
 
-        message = (
-            "🎉 Congratulations, your answer is correct!\n\n"
-            "🏁 We will now wait for all participants to complete the game.\n\n"
-            "✨ After that, we will randomly select 20 winners from those who answered correctly.\n\n"
-            "☘️ Good luck!"
-        ) if is_correct else (
-            "❌ Oops, that's the wrong answer!\n\nBut don't give up!\n\n🤗 Try again tomorrow."
+        if is_correct:
+            message = (
+                "🎉 Yeah, your answer is correct!\n\n"
+                "🏁 We will now wait for all participants to complete the game.\n\n"
+                "✨ After that, we will randomly select a number of winners from those who answered correctly.\n\n"
+                "☘️ Good luck!"
+            )
+            image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/correct.png"
+        else:
+            message = (
+                "❌ Oops, that's the wrong answer!\n\n"
+                "But don't give up!\n\n"
+                "🤗 Try again next time."
+            )
+            image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/wrong.png"
+
+        # Отправляем сообщение с картинкой
+        context.bot.send_photo(
+            chat_id=user_id,
+            photo=image_url,
+            caption=message
         )
-        
-        context.bot.send_message(chat_id=user_id, text=message)
         
     except Exception as e:
         logging.error(f"Error in poll_handler: {str(e)}")
+
 
 def start_command_handler(update, context):
     user = update.effective_user
@@ -493,18 +545,24 @@ def start_command_handler(update, context):
         context.bot.send_message(chat_id=chat_id, text="⛔ You are not authorized to use this bot.")
         return
 
-    # English message
+    # Message text and image URL
     text_message = (
         "🎉 The quiz has started!\n\n"
-        "⏰ Wait for the question, which we will send at 16:00 UTC.\n"
-        "📢 Don’t worry, we’ll send you a reminder 5 minutes before the question!"
+        "The question will appear at \n15:00 UTC ⏰\n\n"
+        "📢 Don’t worry, we’ll send you a reminder 5 minutes before the quiz starts!"
+    )
+    image_url = "https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/start_img.png"
+
+    # Send photo with text message
+    context.bot.send_photo(
+        chat_id=chat_id,
+        photo=image_url,
+        caption=text_message
     )
 
-    # Send text message
-    context.bot.send_message(chat_id=chat_id, text=text_message)
-
     # Logging
-    logging.info(f"Sent quiz start message to @{username}")
+    logging.info(f"Sent quiz start message with image to @{username}")
+
 
     
 def list_handler(update, context):
@@ -572,8 +630,8 @@ def main():
         job_queue = updater.job_queue
 
         # Начальная дата и время первого дня
-        start_date = datetime(2024, 12, 11, 15, 0, tzinfo=timezone.utc)
-        end_date = datetime(2024, 12, 17, 14, 20, tzinfo=timezone.utc)
+        start_date = datetime(2024, 12, 15, 10, 30, tzinfo=timezone.utc)
+        end_date = datetime(2024, 12, 23, 14, 1, tzinfo=timezone.utc)
         current_date = start_date
 
         while current_date <= end_date:
@@ -603,7 +661,7 @@ def main():
         # Напоминание о финале после последнего дня квиза
         job_queue.run_once(
             notify_users_about_final,
-            when=end_date + timedelta(seconds=100)  # Отправить через 100 секунд после конца последнего дня
+            when=end_date + timedelta(seconds=50)  # Отправить через 50 секунд после конца последнего дня
         )
 
         logging.info("Scheduled final reminder after the last quiz day")

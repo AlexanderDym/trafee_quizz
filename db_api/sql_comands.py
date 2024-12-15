@@ -180,79 +180,65 @@ def reset_gift_table(conn: Optional[connection] = None) -> bool:
 
 def fill_participants_from_json(json_file_path: str, conn: Optional[connection] = None) -> bool:
     """
-    Fill the participants table with data from a JSON file containing trafee usernames.
-    
+    Add new participants to the database or update only empty fields for existing participants.
+
     Args:
-        json_file_path (str): Path to the JSON file containing list of trafee usernames
-        conn (Optional[connection]): Database connection object. If None, creates new connection
-        
+        json_file_path (str): Path to the JSON file containing list of trafee usernames.
+        conn (Optional[connection]): Database connection object. If None, creates new connection.
+
     Returns:
-        bool: True if operation was successful, False otherwise
-        
-    The JSON file should be in the format:
-    {
-        "participants": [
-            {"trafee_username": "user1"},
-            {"trafee_username": "user2"},
-            ...
-        ]
-    }
+        bool: True if operation was successful, False otherwise.
     """
     should_close_conn = conn is None
     try:
-        # Create connection if not provided
         if conn is None:
             conn = get_db_connection()
-            
-        # Read JSON file
+
         with open(json_file_path, 'r') as file:
             data = json.load(file)
-            
+
         if not isinstance(data, dict) or 'participants' not in data:
-            raise ValueError("JSON file must contain a 'participants' key with list of usernames")
-            
+            raise ValueError("JSON file must contain a 'participants' key with list of usernames.")
+
         participants = data['participants']
         if not participants:
-            print("Warning: Empty participants list in JSON file")
+            print("Warning: Empty participants list in JSON file.")
             return True
-            
-        # Prepare data for insertion
+
+        # Prepare data for insertion or update
         insert_data = []
-        
         for participant in participants:
             if not isinstance(participant, dict) or 'trafee_username' not in participant:
                 print(f"Warning: Skipping invalid participant entry: {participant}")
                 continue
-                
+
             username = participant['trafee_username']
             if not username:
-                print("Warning: Skipping empty username")
+                print("Warning: Skipping empty username.")
                 continue
-                
-            insert_data.append({
-                'trafee_username': username,
-            })
-        
+
+            insert_data.append((username,))
+
         if not insert_data:
-            print("No valid participants to insert")
+            print("No valid participants to insert or update.")
             return True
-            
-        # Perform bulk insert
+
+        # Perform bulk upsert
         cur = conn.cursor()
         psycopg2.extras.execute_values(
             cur,
             """
             INSERT INTO participants (trafee_username)
             VALUES %s
-            ON CONFLICT (trafee_username) DO NOTHING
+            ON CONFLICT (trafee_username) DO NOTHING;
             """,
-            [(d['trafee_username'], ) for d in insert_data]
+            insert_data
         )
-        
+
         conn.commit()
-        print(f"Successfully inserted {len(insert_data)} participants")
+        print(f"Successfully inserted {len(insert_data)} new participants.")
         return True
-        
+
     except FileNotFoundError:
         print(f"Error: JSON file not found at {json_file_path}")
         return False
@@ -264,10 +250,11 @@ def fill_participants_from_json(json_file_path: str, conn: Optional[connection] 
         if conn:
             conn.rollback()
         return False
-        
+
     finally:
         if should_close_conn and conn:
             conn.close()
+
 
 
 
@@ -353,30 +340,33 @@ def fill_gifts_from_list(gifts_list: list[Gift], conn: Optional[connection] = No
 
 
 if __name__ == "__main__":
-    # Example usage
     try:
         conn = get_db_connection()
         
-        # Choose one of these operations:
-        clear_table(conn)  # Just delete all records
-        reset_table(conn)  # Drop and recreate table
-        fill_participants_from_json('participants.json',conn)  # Drop and recreate table
+        # Уберите вызовы clear_table и reset_table:
+        clear_table(conn)  # Удаляет данные — НЕ НУЖНО
+        # reset_table(conn)  # Удаляет и пересоздает таблицу — НЕ НУЖНО
+        
+        # Просто добавляем или обновляем участников
+        fill_participants_from_json('participants.json', conn)  # Добавить новых участников, сохраняя старых
 
-        clear_gifts_table()
-        reset_gift_table()
+        # Если нужно, работайте с подарками
+        clear_gifts_table()  # Очистка таблицы подарков — по необходимости
+        reset_gift_table()  # Сброс таблицы подарков — по необходимости
 
+        # Пример добавления подарков
         gifts = [
-            Gift("Amazon Gift Card or Yandex Gift Card",                quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Google Gift Card",                                    quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Netflix 1 month or Amediateka Subscription 3 month",  quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("YouTube Premium for 3 month or Yandex plus",          quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Telegram Subscription for 3 month",                   quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Telegram Subscription 1year",                         quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Spotify Premium 3 month/ yandex музыка",              quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("VPN Subscription 1year",                              quantities=[1, 1, 1, 1, 1, 1, 1]),
-            Gift("Trafee Bonus",                                        quantities=[1, 1, 1, 1, 1, 1, 1])
+            Gift("Amazon Gift Card or Yandex Gift Card",                quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("Google Gift Card",                                    quantities=[3, 3, 3, 3, 3, 3, 3]),
+            Gift("Netflix for 1 month or Amediateka Subscription for 3 month",  quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("YouTube Premium for 3 month or Yandex Plus",          quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("Telegram Subscription for 3 month",                   quantities=[2, 2, 2, 2, 2, 2, 2]),
+            Gift("Telegram Subscription for 1 year",                         quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Spotify Premium for 3 month or Yandex Music",              quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("VPN Subscription for 1 year",                              quantities=[1, 1, 1, 1, 1, 1, 1]),
+            Gift("Trafee Bonus",                                        quantities=[6, 6, 6, 6, 6, 6, 6])
         ]
         fill_gifts_from_list(gifts)
-        
+
     except Exception as e:
         print(f"Operation failed: {e}")
