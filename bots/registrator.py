@@ -138,7 +138,7 @@ def check_username(update: Update, context: CallbackContext):
                 chat_id=update.effective_chat.id,
                 photo="https://mailer.ucliq.com/wizz/frontend/assets/files/customer/kd629xy3hj208/Trafee_quiz/reg_done.png",
                 caption=(
-                    f"🎉 Congratulations, {username}!\n\nYou’ve successfully registered.\n"
+                    f"🎉 Congratulations!\n\nYou’ve successfully registered.\n"
                     f"Jump into [the main bot]({main_bot_link}) to start exploring! 🌟"
                 ),
                 parse_mode="Markdown"

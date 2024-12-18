@@ -23,7 +23,7 @@ from bots.config import file_path, SUPERADMIN_USERNAME
 load_dotenv()
 
 FIRST_DATETIME = None
-CURRNET_DAY = 1 
+CURRNET_DAY = 3
 QUIZ_TIMEOUT_SECONDS = 30
 SUPERADMIN_USERNAME = "Alexander_Dym"
 
@@ -81,9 +81,12 @@ def distribute_gifts_to_participants(
     if not available_gifts or not participants:
         logging.error(f"No gifts or participants available for day {day}")
         return ()
+    
+    day_gift_quantity_column = f"day_{day}_quantity"
         
     # Create list of gift names and shuffle them
-    gift_names = [gift.name for gift in available_gifts]
+    gift_names = [gift.name for gift in available_gifts for _ in range(getattr(gift, day_gift_quantity_column))]
+    participants = random.sample(participants, min(len(gift_names), len(participants)))
     updated_gifts = []
     random.shuffle(gift_names)
     
@@ -281,34 +284,67 @@ def notify_users_about_final(context):
     except Exception as e:
         logging.error(f"Error in notify_users_about_final: {str(e)}")
 
+#def select_winners(availble_gifts:list) -> list[models.Participant]:
+    #day_column = f"day_{CURRNET_DAY}_quantity"
+    #ift_pool = []
+    #for gift in availble_gifts:
+       #quantity = getattr(gift, day_column)
+        #gift_pool.extend([gift.name] * quantity)
+
+    #logging.info(f"Selecting winners for Day {CURRNET_DAY}. Available gifts: {len(availble_gifts)}")
+   #participants = database.get_registered_participants()
+    
+    #correct_users = []
+    #for participant in participants:
+        #day_field = f'day_{CURRNET_DAY}_answer'
+        #participant_answer = getattr(participant, day_field, None)
+
+        #if isinstance(participant_answer, str):
+            #participant_answer = True if (participant_answer=='true') or (participant_answer=='True') else False
+            #setattr(participant, f'day_{CURRNET_DAY}_answer', participant_answer)
+        
+        #if isinstance(participant_answer, bool) and participant_answer == True:
+            #correct_users.append(participant)
+
+    #if not correct_users:
+       #logging.info(f"No correct answers for Day {CURRNET_DAY}. No winners selected.")
+        #return []
+        
+    #winners = random.sample(correct_users, min(len(availble_gifts), len(correct_users)))
+    #return winners
+
 
 def select_winners(availble_gifts:list) -> list[models.Participant]:
     day_column = f"day_{CURRNET_DAY}_quantity"
-    gift_pool = []
-    for gift in availble_gifts:
-        quantity = getattr(gift, day_column)
-        gift_pool.extend([gift.name] * quantity)
 
-    logging.info(f"Selecting winners for Day {CURRNET_DAY}. Available gifts: {len(availble_gifts)}")
+    # Суммарное количество подарков на текущий день
+    total_available_gifts = sum(getattr(gift, day_column) for gift in availble_gifts)
+
+    logging.info(f"Selecting winners for Day {CURRNET_DAY}. Total available gifts: {total_available_gifts}")
+
     participants = database.get_registered_participants()
     
+    # Отбор участников, ответивших правильно
     correct_users = []
     for participant in participants:
         day_field = f'day_{CURRNET_DAY}_answer'
         participant_answer = getattr(participant, day_field, None)
 
+        # Преобразуем строковый ответ в булево значение, если нужно
         if isinstance(participant_answer, str):
-            participant_answer = True if (participant_answer=='true') or (participant_answer=='True') else False
-            setattr(participant, f'day_{CURRNET_DAY}_answer', participant_answer)
+            participant_answer = participant_answer.lower() == 'true'
+            setattr(participant, day_field, participant_answer)
         
-        if isinstance(participant_answer, bool) and participant_answer == True:
+        if isinstance(participant_answer, bool) and participant_answer:
             correct_users.append(participant)
 
+    # Если нет правильных ответов
     if not correct_users:
         logging.info(f"No correct answers for Day {CURRNET_DAY}. No winners selected.")
         return []
-        
-    winners = random.sample(correct_users, min(len(availble_gifts), len(correct_users)))
+
+    # Выбираем победителей с учетом общего количества доступных подарков
+    winners = random.sample(correct_users, min(total_available_gifts, len(correct_users)))
     return winners
 
 def add_quiz_question(context, quiz_question, chat_id, day):
@@ -630,8 +666,8 @@ def main():
         job_queue = updater.job_queue
 
         # Начальная дата и время первого дня
-        start_date = datetime(2024, 12, 17, 14, 0, tzinfo=timezone.utc)
-        end_date = datetime(2024, 12, 23, 14, 1, tzinfo=timezone.utc)
+        start_date = datetime(2024, 12, 19, 15, 0, tzinfo=timezone.utc)
+        end_date =   datetime(2024, 12, 23, 15, 4, tzinfo=timezone.utc)
         current_date = start_date
 
         while current_date <= end_date:
@@ -652,7 +688,7 @@ def main():
             # Напоминание о следующем дне через 90 секунд после квиза
             job_queue.run_once(
                 notify_users_about_next_day,
-                when=current_date + timedelta(seconds=90)
+                when=current_date + timedelta(seconds=300)
             )
 
             logging.info(f"Scheduled quiz for Day {day_number} on {current_date.isoformat()}")

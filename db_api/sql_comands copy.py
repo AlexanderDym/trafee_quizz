@@ -76,7 +76,7 @@ load_dotenv()
 def get_db_connection() -> connection:
     """Create and return a database connection"""
     try:
-        conn = psycopg2.connect(os.getenv("EXTERNAL_DATABASE_URL"))
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
         return conn
     except Exception as e:
         print(f"Error connecting to database: {e}")
@@ -183,7 +183,7 @@ def fill_participants_from_json(json_file_path: str, conn: Optional[connection] 
     Add new participants to the database or update only empty fields for existing participants.
 
     Args:
-        json_file_path (str): Path to the JSON file containing participants data.
+        json_file_path (str): Path to the JSON file containing list of trafee usernames.
         conn (Optional[connection]): Database connection object. If None, creates new connection.
 
     Returns:
@@ -198,42 +198,45 @@ def fill_participants_from_json(json_file_path: str, conn: Optional[connection] 
             data = json.load(file)
 
         if not isinstance(data, dict) or 'participants' not in data:
-            raise ValueError("JSON file must contain a 'participants' key with participant data.")
+            raise ValueError("JSON file must contain a 'participants' key with list of usernames.")
 
         participants = data['participants']
         if not participants:
             print("Warning: Empty participants list in JSON file.")
             return True
 
-        cur = conn.cursor()
-
-        # Prepare data for upsert
+        # Prepare data for insertion or update
+        insert_data = []
         for participant in participants:
-            columns = [
-                'trafee_username', 'name', 'telegram_id', 'telegram_username',
-                'day_1_answer', 'day_1_prize',
-                'day_2_answer', 'day_2_prize',
-                'day_3_answer', 'day_3_prize',
-                'day_4_answer', 'day_4_prize',
-                'day_5_answer', 'day_5_prize',
-                'day_6_answer', 'day_6_prize',
-                'day_7_answer', 'day_7_prize',
-                'final_prize'
-            ]
-            values = [participant.get(column) for column in columns]
+            if not isinstance(participant, dict) or 'trafee_username' not in participant:
+                print(f"Warning: Skipping invalid participant entry: {participant}")
+                continue
 
-            # Construct SQL for upsert
-            upsert_query = f"""
-            INSERT INTO participants ({', '.join(columns)})
-            VALUES ({', '.join(['%s'] * len(columns))})
-            ON CONFLICT (trafee_username) DO UPDATE SET
-            {', '.join([f"{col} = COALESCE(EXCLUDED.{col}, participants.{col})" for col in columns if col != 'trafee_username'])};
+            username = participant['trafee_username']
+            if not username:
+                print("Warning: Skipping empty username.")
+                continue
+
+            insert_data.append((username,))
+
+        if not insert_data:
+            print("No valid participants to insert or update.")
+            return True
+
+        # Perform bulk upsert
+        cur = conn.cursor()
+        psycopg2.extras.execute_values(
+            cur,
             """
-
-            cur.execute(upsert_query, values)
+            INSERT INTO participants (trafee_username)
+            VALUES %s
+            ON CONFLICT (trafee_username) DO NOTHING;
+            """,
+            insert_data
+        )
 
         conn.commit()
-        print(f"Successfully processed {len(participants)} participants.")
+        print(f"Successfully inserted {len(insert_data)} new participants.")
         return True
 
     except FileNotFoundError:
@@ -247,6 +250,7 @@ def fill_participants_from_json(json_file_path: str, conn: Optional[connection] 
         if conn:
             conn.rollback()
         return False
+
     finally:
         if should_close_conn and conn:
             conn.close()
@@ -340,15 +344,15 @@ if __name__ == "__main__":
         conn = get_db_connection()
         
         # Уберите вызовы clear_table и reset_table:
-        clear_table(conn)  # Удаляет данные — НЕ НУЖНО
-        reset_table(conn)  # Удаляет и пересоздает таблицу — НЕ НУЖНО
+        #clear_table(conn)  # Удаляет данные — НЕ НУЖНО
+        # reset_table(conn)  # Удаляет и пересоздает таблицу — НЕ НУЖНО
         
         # Просто добавляем или обновляем участников
-        fill_participants_from_json('participants_with_all_columns.json', conn)  # Добавить новых участников, сохраняя старых
+        fill_participants_from_json('participants.json', conn)  # Добавить новых участников, сохраняя старых
 
         # Если нужно, работайте с подарками
-        clear_gifts_table()  # Очистка таблицы подарков — по необходимости
-        reset_gift_table()  # Сброс таблицы подарков — по необходимости
+        #clear_gifts_table()  # Очистка таблицы подарков — по необходимости
+        #reset_gift_table()  # Сброс таблицы подарков — по необходимости
 
         # Пример добавления подарков
         gifts = [

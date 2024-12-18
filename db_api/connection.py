@@ -51,7 +51,7 @@ class DatabaseConfig:
         if not url:
             url = self._construct_db_url()
         
-        if url and "postgres.railway.internal" in url:
+        if url and "internal" in url:
             url = os.getenv("EXTERNAL_DATABASE_URL", url)
             
         if url and url.startswith("postgres://"):
